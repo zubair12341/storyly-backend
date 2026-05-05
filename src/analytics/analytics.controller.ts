@@ -1,0 +1,38 @@
+import {
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
+import { Request } from 'express';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AnalyticsService } from './analytics.service';
+
+@Controller('analytics')
+@UseGuards(JwtAuthGuard)
+export class AnalyticsController {
+  constructor(private readonly analyticsService: AnalyticsService) {}
+
+  /**
+   * GET /analytics/summary
+   * Returns workspace-wide totals: story views, slide views, CTA clicks, CTR.
+   */
+  @Get('summary')
+  getSummary(@Req() req: Request & { user: { workspaceId: string } }) {
+    return this.analyticsService.getSummary(req.user.workspaceId);
+  }
+
+  /**
+   * GET /analytics/stories/:id
+   * Returns per-story analytics including completion rate.
+   */
+  @Get('stories/:id')
+  getStoryStats(
+    @Req() req: Request & { user: { workspaceId: string } },
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.analyticsService.getStoryStats(req.user.workspaceId, id);
+  }
+}
