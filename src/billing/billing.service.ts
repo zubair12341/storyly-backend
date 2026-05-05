@@ -153,6 +153,7 @@ export class BillingService {
 
   private async onCheckoutCompleted(session: StripeCheckoutSession) {
     const workspaceId = session.metadata?.workspace_id;
+    console.log('SESSION METADATA:', session.metadata);
     if (!workspaceId) {
       this.logger.warn('checkout.session.completed missing workspace_id metadata');
       return;
@@ -162,8 +163,11 @@ export class BillingService {
       session.subscription as string,
     );
 
+    const priceId = subscription.items.data[0]?.price?.id;
+    const plan: PlanId = STRIPE_PRICE_IDS[priceId ?? ''] ?? 'pro';
+
     await this.upsertWorkspaceBilling(workspaceId, {
-      plan: 'pro',
+      plan,
       stripe_customer_id: session.customer as string,
       stripe_subscription_id: subscription.id,
       subscription_status: 'active',
