@@ -45,6 +45,16 @@ export class BillingController {
     @Req() req: RawBodyRequest<Request>,
     @Headers('stripe-signature') signature: string,
   ) {
+    // 🔍 DEBUG START
+    console.log('RAW BODY TYPE:', typeof req.rawBody);
+    console.log('IS BUFFER:', Buffer.isBuffer(req.rawBody));
+    console.log('BODY TYPE:', typeof req.body);
+    // 🔍 DEBUG END
+
+    if (!req.rawBody) {
+      throw new BadRequestException('Missing raw body');
+    }
+
     return this.billingService.handleWebhook(req.rawBody, signature);
   }
 }
