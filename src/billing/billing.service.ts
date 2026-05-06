@@ -52,7 +52,7 @@ export class BillingService {
       metadata: { workspace_id: workspaceId },
       success_url: successUrl,
       cancel_url:  cancelUrl,
-    });
+    }); 
 
     return { url: session.url };
   }

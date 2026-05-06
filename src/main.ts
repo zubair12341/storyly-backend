@@ -2,7 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import ws from 'ws';
-import * as express from 'express'; // ✅ added
+import * as bodyParser from 'body-parser';
 
 // Polyfill WebSocket
 if (!globalThis.WebSocket) {
@@ -10,16 +10,24 @@ if (!globalThis.WebSocket) {
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  const app = await NestFactory.create(AppModule);
 
-  // ✅ Stripe webhook raw body (CRITICAL)
-  app.use('/billing/webhook', express.raw({ type: 'application/json' }));
-
-  app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }),
+  // ✅ Stripe webhook raw body middleware
+  app.use(
+    '/billing/webhook',
+    bodyParser.raw({ type: 'application/json' }),
   );
 
-  // ✅ TEMP: allow all origins
+  // ✅ Normal JSON parser for all other routes
+  app.use(bodyParser.json());
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    }),
+  );
+
   app.enableCors({
     origin: true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -29,4 +37,5 @@ async function bootstrap() {
 
   await app.listen(process.env.PORT ?? 3000);
 }
+
 bootstrap();

@@ -8,11 +8,9 @@ import {
   Post,
   Req,
   UseGuards,
-  BadRequestException,
 } from '@nestjs/common';
 
 import type { Request } from 'express';
-import type { RawBodyRequest } from '@nestjs/common';
 
 import { BillingService } from './billing.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -43,19 +41,11 @@ export class BillingController {
   @Post('webhook')
   @HttpCode(HttpStatus.OK)
   handleWebhook(
-    @Req() req: RawBodyRequest<Request>,
+    @Req() req: Request,
     @Headers('stripe-signature') signature: string,
   ) {
-    // 🔍 DEBUG START
-    console.log('RAW BODY TYPE:', typeof req.rawBody);
-    console.log('IS BUFFER:', Buffer.isBuffer(req.rawBody));
-    console.log('BODY TYPE:', typeof req.body);
-    // 🔍 DEBUG END
+    console.log('IS BUFFER:', Buffer.isBuffer(req.body));
 
-    if (!req.rawBody) {
-      throw new BadRequestException('Missing raw body');
-    }
-
-    return this.billingService.handleWebhook(req.rawBody, signature);
+    return this.billingService.handleWebhook(req.body, signature);
   }
 }
