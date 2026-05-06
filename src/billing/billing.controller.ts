@@ -8,6 +8,7 @@ import {
   Post,
   Req,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 
 import type { Request } from 'express';
