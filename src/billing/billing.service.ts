@@ -62,6 +62,7 @@ export class BillingService {
 
     let event: StripeEvent;
     try {
+      this.logger.debug(`WEBHOOK SECRET: ${this.configService.get('STRIPE_WEBHOOK_SECRET')}`);
       event = this.stripe.webhooks.constructEvent(rawBody, signature, secret) as StripeEvent;
     } catch (err) {
       this.logger.error('Webhook signature verification failed', err);
