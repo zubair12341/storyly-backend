@@ -57,7 +57,7 @@ export class BillingService {
     return { url: session.url };
   }
 
-  async handleWebhook(rawBody: Buffer, signature: string) {
+  async handleWebhook(rawBody: Buffer | string, signature: string) {
     const secret = this.configService.getOrThrow('STRIPE_WEBHOOK_SECRET');
 
     let event: StripeEvent;
