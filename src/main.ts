@@ -10,15 +10,20 @@ if (!globalThis.WebSocket) {
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
 
-  // ✅ Stripe webhook raw body middleware
+  // IMPORTANT:
+  // Disable Nest default body parser
+  const app = await NestFactory.create(AppModule, {
+    bodyParser: false,
+  });
+
+  // Stripe webhook route MUST use raw body
   app.use(
     '/billing/webhook',
-    bodyParser.raw({ type: 'application/json' }),
+    bodyParser.raw({ type: '*/*' }),
   );
 
-  // ✅ Normal JSON parser for all other routes
+  // Normal JSON parser for all OTHER routes
   app.use(bodyParser.json());
 
   app.useGlobalPipes(
