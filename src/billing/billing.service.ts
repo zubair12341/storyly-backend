@@ -10,6 +10,7 @@ import StripeSDK = require('stripe');
 import { PLANS, PlanId } from './plans.config';
 import { PlanLimitExceededException } from './exceptions/plan-limit-exceeded.exception';
 
+
 // ── Stripe types derived from the instance (avoids broken namespace access in v22) ──
 type StripeInstance        = StripeSDK.Stripe;
 type StripeEvent           = Awaited<ReturnType<StripeInstance['events']['retrieve']>>;
