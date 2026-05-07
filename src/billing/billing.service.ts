@@ -2,13 +2,13 @@ import {
   Injectable,
   InternalServerErrorException,
   BadRequestException,
-  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import StripeSDK = require('stripe');
 import { PLANS, PlanId } from './plans.config';
+import { PlanLimitExceededException } from './exceptions/plan-limit-exceeded.exception';
 
 // ── Stripe types derived from the instance (avoids broken namespace access in v22) ──
 type StripeInstance        = StripeSDK.Stripe;
@@ -44,7 +44,7 @@ export class BillingService {
    * Reads from ConfigService at call-time so Render env vars are always fresh.
    */
   private getPriceId(plan: 'pro' | 'business'): string {
-    const envKey = plan === 'pro' ? 'STRIPE_PRICE_PRO' : 'STRIPE_PRICE_BUSINESS';
+    const envKey  = plan === 'pro' ? 'STRIPE_PRICE_PRO' : 'STRIPE_PRICE_BUSINESS';
     const priceId = this.configService.get<string>(envKey);
     if (!priceId || priceId.startsWith('__unset')) {
       throw new BadRequestException(`No Stripe price configured for plan: ${plan}`);
@@ -185,8 +185,14 @@ export class BillingService {
       throw new InternalServerErrorException('Could not verify plan limits.');
     }
 
-    if ((count ?? 0) >= limits.maxStories) {
-      throw new ForbiddenException('Plan limit reached');
+    const current = count ?? 0;
+    if (current >= limits.maxStories) {
+      throw new PlanLimitExceededException({
+        limit_type: 'stories',
+        current,
+        limit:      limits.maxStories,
+        plan,
+      });
     }
   }
 
@@ -211,8 +217,14 @@ export class BillingService {
       throw new InternalServerErrorException('Could not verify plan limits.');
     }
 
-    if ((count ?? 0) >= limits.maxMonthlyViews) {
-      throw new ForbiddenException('Plan limit reached');
+    const current = count ?? 0;
+    if (current >= limits.maxMonthlyViews) {
+      throw new PlanLimitExceededException({
+        limit_type: 'views',
+        current,
+        limit:      limits.maxMonthlyViews,
+        plan,
+      });
     }
   }
 
@@ -261,7 +273,7 @@ export class BillingService {
       session.subscription as string,
     );
 
-    const priceId = subscription.items.data[0]?.price?.id;
+    const priceId     = subscription.items.data[0]?.price?.id;
     const plan: PlanId = priceId ? this.mapPriceIdToPlan(priceId) : 'pro';
 
     await this.upsertWorkspaceBilling(workspaceId, {
@@ -280,9 +292,9 @@ export class BillingService {
     const workspaceId = await this.findWorkspaceBySubscription(subscription.id);
     if (!workspaceId) return;
 
-    const priceId     = subscription.items.data[0]?.price?.id;
-    const mappedPlan  = priceId ? this.mapPriceIdToPlan(priceId) : 'pro';
-    const isActive    = ['active', 'trialing'].includes(subscription.status);
+    const priceId    = subscription.items.data[0]?.price?.id;
+    const mappedPlan = priceId ? this.mapPriceIdToPlan(priceId) : 'pro';
+    const isActive   = ['active', 'trialing'].includes(subscription.status);
 
     await this.upsertWorkspaceBilling(workspaceId, {
       plan:                isActive ? mappedPlan : 'free',

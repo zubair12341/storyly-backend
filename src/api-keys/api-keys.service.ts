@@ -12,12 +12,21 @@ import * as crypto from 'crypto';
 import { CreateApiKeyDto } from './dto/create-api-key.dto';
 
 const BCRYPT_ROUNDS = 10; // Lower than passwords — keys are long random strings
-const KEY_PREFIX = 'swp_live_';
+const KEY_PREFIX    = 'swp_live_';
+const CACHE_TTL_MS  = 300_000; // 5 minutes
+
+interface CacheEntry {
+  workspaceId: string;
+  expiresAt: number;
+}
 
 @Injectable()
 export class ApiKeysService {
   private readonly supabase: SupabaseClient;
   private readonly logger = new Logger(ApiKeysService.name);
+
+  /** In-memory cache: rawKey → { workspaceId, expiresAt } */
+  private readonly validationCache = new Map<string, CacheEntry>();
 
   constructor(private readonly configService: ConfigService) {
     this.supabase = createClient(
@@ -45,10 +54,10 @@ export class ApiKeysService {
       .from('api_keys')
       .insert({
         workspace_id: workspaceId,
-        name: dto.name,
-        key_hash: keyHash,
-        key_prefix: keyPrefix,
-        is_active: true,
+        name:         dto.name,
+        key_hash:     keyHash,
+        key_prefix:   keyPrefix,
+        is_active:    true,
       })
       .select('id, name, key_prefix, is_active, created_at')
       .single();
@@ -61,7 +70,7 @@ export class ApiKeysService {
     // 5. Return raw key ONCE — never stored, never retrievable again
     return {
       ...data,
-      key: rawKey,
+      key:     rawKey,
       message: 'Store this key safely. It will not be shown again.',
     };
   }
@@ -132,6 +141,17 @@ export class ApiKeysService {
   async validate(rawKey: string): Promise<{ workspaceId: string } | null> {
     if (!rawKey?.startsWith(KEY_PREFIX)) return null;
 
+    // ── Cache check ──────────────────────────────────────────────
+    const cached = this.validationCache.get(rawKey);
+    if (cached) {
+      if (cached.expiresAt > Date.now()) {
+        return { workspaceId: cached.workspaceId };
+      }
+      // Entry expired — evict and fall through to bcrypt
+      this.validationCache.delete(rawKey);
+    }
+
+    // ── Cache miss: bcrypt path ──────────────────────────────────
     const keyPrefix = rawKey.substring(0, 12);
 
     // 1. Narrow candidates by prefix (fast index lookup)
@@ -141,12 +161,23 @@ export class ApiKeysService {
       .eq('key_prefix', keyPrefix)
       .eq('is_active', true);
 
-    if (error || !candidates?.length) return null;
+    if (error) {
+      this.logger.error('Failed to fetch API key candidates during validation', error);
+      return null;
+    }
+
+    if (!candidates?.length) return null;
 
     // 2. bcrypt compare against each candidate (usually just one)
     for (const candidate of candidates) {
       const match = await bcrypt.compare(rawKey, candidate.key_hash);
       if (match) {
+        // Store in cache — only successful validations are cached
+        this.validationCache.set(rawKey, {
+          workspaceId: candidate.workspace_id,
+          expiresAt:   Date.now() + CACHE_TTL_MS,
+        });
+
         // Fire-and-forget: update last_used_at
         this.supabase
           .from('api_keys')

@@ -23,26 +23,28 @@ export class AnalyticsService {
   // ─────────────────────────────────────────────
 
   async getSummary(workspaceId: string) {
-    const { data, error } = await this.supabase
-      .from('events')
-      .select('event_type')
-      .eq('workspace_id', workspaceId);
+    // Single round-trip: Postgres counts grouped by event_type — no rows loaded into memory.
+    const { data, error } = await this.supabase.rpc('get_event_counts_by_type', {
+      p_workspace_id: workspaceId,
+    });
 
     if (error) {
-      this.logger.error('Failed to fetch analytics summary', error);
-      throw new InternalServerErrorException('Could not retrieve analytics.');
+      this.logger.error('Failed to fetch analytics summary via RPC — falling back', error);
+      return this.getSummaryFallback(workspaceId);
     }
 
-    const storyViews = data.filter((e) => e.event_type === 'story_view').length;
-    const slideViews = data.filter((e) => e.event_type === 'slide_view').length;
-    const ctaClicks = data.filter((e) => e.event_type === 'cta_click').length;
-    const ctr = storyViews > 0 ? ctaClicks / storyViews : 0;
+    const counts = this.parseEventCounts(data as Array<{ event_type: string; count: number }>);
+
+    const storyViews = counts['story_view'] ?? 0;
+    const slideViews = counts['slide_view'] ?? 0;
+    const ctaClicks  = counts['cta_click']  ?? 0;
+    const ctr        = storyViews > 0 ? ctaClicks / storyViews : 0;
 
     return {
       story_views: storyViews,
       slide_views: slideViews,
-      cta_clicks: ctaClicks,
-      ctr: parseFloat(ctr.toFixed(4)),
+      cta_clicks:  ctaClicks,
+      ctr:         parseFloat(ctr.toFixed(4)),
     };
   }
 
@@ -51,7 +53,7 @@ export class AnalyticsService {
   // ─────────────────────────────────────────────
 
   async getStoryStats(workspaceId: string, storyId: string) {
-    // Fetch story's slide count to determine "last slide" for completion rate
+    // Fetch story's slide count to determine "last slide" for completion rate.
     const { data: story, error: storyError } = await this.supabase
       .from('stories')
       .select('slides')
@@ -64,37 +66,163 @@ export class AnalyticsService {
       throw new InternalServerErrorException('Could not retrieve story.');
     }
 
-    const { data: events, error: eventsError } = await this.supabase
-      .from('events')
-      .select('event_type, slide_index')
-      .eq('workspace_id', workspaceId)
-      .eq('story_id', storyId);
+    // Aggregate event counts server-side — no event rows loaded into memory.
+    const { data: eventData, error: eventsError } = await this.supabase.rpc(
+      'get_story_event_counts',
+      {
+        p_workspace_id: workspaceId,
+        p_story_id:     storyId,
+      },
+    );
 
     if (eventsError) {
-      this.logger.error('Failed to fetch story events', eventsError);
-      throw new InternalServerErrorException('Could not retrieve analytics.');
+      this.logger.error('Failed to fetch story event counts via RPC — falling back', eventsError);
+      return this.getStoryStatsFallback(workspaceId, storyId, story);
     }
 
-    const storyViews = events.filter((e) => e.event_type === 'story_view').length;
-    const slideViews = events.filter((e) => e.event_type === 'slide_view').length;
-    const ctaClicks = events.filter((e) => e.event_type === 'cta_click').length;
+    const counts = this.parseEventCounts(
+      eventData as Array<{ event_type: string; count: number }>,
+    );
 
-    // Completion = sessions that reached the last slide / story_view count
-    // last slide index = slides.length - 1 (slides is a JSONB array)
+    const storyViews = counts['story_view'] ?? 0;
+    const slideViews = counts['slide_view'] ?? 0;
+    const ctaClicks  = counts['cta_click']  ?? 0;
+
     let completionRate = 0;
     if (story && Array.isArray(story.slides) && story.slides.length > 0) {
       const lastSlideIndex = story.slides.length - 1;
-      const completions = events.filter(
-        (e) => e.event_type === 'slide_view' && e.slide_index === lastSlideIndex,
-      ).length;
-      completionRate = storyViews > 0 ? completions / storyViews : 0;
+
+      const { count: completions, error: completionError } = await this.supabase
+        .from('events')
+        .select('id', { count: 'exact', head: true })
+        .eq('workspace_id', workspaceId)
+        .eq('story_id', storyId)
+        .eq('event_type', 'slide_view')
+        .eq('slide_index', lastSlideIndex);
+
+      if (completionError) {
+        this.logger.error('Failed to count completion events', completionError);
+        throw new InternalServerErrorException('Could not retrieve analytics.');
+      }
+
+      completionRate = storyViews > 0 ? (completions ?? 0) / storyViews : 0;
     }
 
     return {
-      story_id: storyId,
+      story_id:        storyId,
+      story_views:     storyViews,
+      slide_views:     slideViews,
+      cta_clicks:      ctaClicks,
+      completion_rate: parseFloat(completionRate.toFixed(4)),
+    };
+  }
+
+  // ─────────────────────────────────────────────
+  //  Private helpers
+  // ─────────────────────────────────────────────
+
+  private parseEventCounts(
+    rows: Array<{ event_type: string; count: number }>,
+  ): Record<string, number> {
+    const result: Record<string, number> = {};
+    for (const row of rows ?? []) {
+      result[row.event_type] = Number(row.count);
+    }
+    return result;
+  }
+
+  /**
+   * Fallback for getSummary when the RPC is not yet deployed.
+   * Three parallel COUNT queries — O(1) memory, no rows transferred.
+   */
+  private async getSummaryFallback(workspaceId: string) {
+    const countFor = async (eventType: string): Promise<number> => {
+      const { count, error } = await this.supabase
+        .from('events')
+        .select('id', { count: 'exact', head: true })
+        .eq('workspace_id', workspaceId)
+        .eq('event_type', eventType);
+
+      if (error) {
+        this.logger.error(`Failed to count ${eventType} events`, error);
+        throw new InternalServerErrorException('Could not retrieve analytics.');
+      }
+
+      return count ?? 0;
+    };
+
+    const [storyViews, slideViews, ctaClicks] = await Promise.all([
+      countFor('story_view'),
+      countFor('slide_view'),
+      countFor('cta_click'),
+    ]);
+
+    const ctr = storyViews > 0 ? ctaClicks / storyViews : 0;
+
+    return {
       story_views: storyViews,
       slide_views: slideViews,
-      cta_clicks: ctaClicks,
+      cta_clicks:  ctaClicks,
+      ctr:         parseFloat(ctr.toFixed(4)),
+    };
+  }
+
+  /**
+   * Fallback for getStoryStats when the RPC is not yet deployed.
+   * Three parallel COUNT queries — O(1) memory, no rows transferred.
+   */
+  private async getStoryStatsFallback(
+    workspaceId: string,
+    storyId: string,
+    story: { slides: unknown } | null,
+  ) {
+    const countFor = async (eventType: string): Promise<number> => {
+      const { count, error } = await this.supabase
+        .from('events')
+        .select('id', { count: 'exact', head: true })
+        .eq('workspace_id', workspaceId)
+        .eq('story_id', storyId)
+        .eq('event_type', eventType);
+
+      if (error) {
+        this.logger.error(`Failed to count ${eventType} events for story ${storyId}`, error);
+        throw new InternalServerErrorException('Could not retrieve analytics.');
+      }
+
+      return count ?? 0;
+    };
+
+    const [storyViews, slideViews, ctaClicks] = await Promise.all([
+      countFor('story_view'),
+      countFor('slide_view'),
+      countFor('cta_click'),
+    ]);
+
+    let completionRate = 0;
+    if (story && Array.isArray(story.slides) && story.slides.length > 0) {
+      const lastSlideIndex = story.slides.length - 1;
+
+      const { count: completions, error: completionError } = await this.supabase
+        .from('events')
+        .select('id', { count: 'exact', head: true })
+        .eq('workspace_id', workspaceId)
+        .eq('story_id', storyId)
+        .eq('event_type', 'slide_view')
+        .eq('slide_index', lastSlideIndex);
+
+      if (completionError) {
+        this.logger.error('Failed to count completion events', completionError);
+        throw new InternalServerErrorException('Could not retrieve analytics.');
+      }
+
+      completionRate = storyViews > 0 ? (completions ?? 0) / storyViews : 0;
+    }
+
+    return {
+      story_id:        storyId,
+      story_views:     storyViews,
+      slide_views:     slideViews,
+      cta_clicks:      ctaClicks,
       completion_rate: parseFloat(completionRate.toFixed(4)),
     };
   }
