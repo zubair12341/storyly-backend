@@ -1,7 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import ws from 'ws';
 import * as bodyParser from 'body-parser';
 
@@ -34,10 +33,8 @@ async function bootstrap() {
     }),
   );
 
-  // Global rate-limit guard — all routes get the 'api' throttle by default.
-  // Individual controllers/methods override with @Throttle({ <name>: ... }).
-  // Webhook is exempt via @SkipThrottle() in billing.controller.ts.
-  app.useGlobalGuards(new ThrottlerGuard());
+  // Global ThrottlerGuard is registered as APP_GUARD in app.module.ts
+  // so it is injected properly by NestJS DI with all required dependencies.
 
   app.enableCors({
     origin: true,

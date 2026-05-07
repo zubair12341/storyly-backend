@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -17,8 +18,8 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    // Global rate-limit configs — applied via APP_GUARD in main.ts.
-    // widget config is preserved exactly; api/billing/auth configs are new.
+    // Global rate-limit configs — ThrottlerGuard registered below as APP_GUARD.
+    // widget config preserved exactly; api/billing/auth configs are new.
     ThrottlerModule.forRoot([
       {
         name: 'widget',
@@ -52,6 +53,15 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     WorkspacesModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    // Global ThrottlerGuard — NestJS DI injects all required constructor args.
+    // All routes get the default 'api' throttle unless overridden with @Throttle().
+    // Webhook is exempt via @SkipThrottle() in billing.controller.ts.
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}

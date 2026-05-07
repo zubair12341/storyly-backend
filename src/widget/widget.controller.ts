@@ -1,92 +1,101 @@
 import {
-  Injectable,
-  CanActivate,
-  ExecutionContext,
-  UnauthorizedException,
-  ForbiddenException,
-  Logger,
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseIntPipe,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+  DefaultValuePipe,
 } from '@nestjs/common';
-import { ApiKeysService } from '../api-keys/api-keys.service';
+import { Throttle } from '@nestjs/throttler';
+import { Request } from 'express';
+import type { Response } from 'express';
+import { WidgetService } from './widget.service';
+import { ApiKeyGuard } from '../api-keys/api-key.guard';
+import { CreateEventsDto } from './dto/create-events.dto';
+import { PlanViewGuard } from '../billing/plan.guard';
+
+/** Shape attached to req.workspace by ApiKeyGuard */
+interface WorkspaceContext {
+  workspaceId: string;
+  allowedDomains: string[];
+  origin: string | null;
+}
 
 /**
- * Used on widget endpoints (POST /widget/events, GET /widget/stories).
- * Reads the raw API key from the x-api-key header, validates it,
- * enforces the domain whitelist, and attaches workspace context to the request.
- *
- * Domain enforcement rules:
- *   - allowed_domains is empty  → allow all origins (backward compatible)
- *   - allowed_domains non-empty → Origin header must be present and in the list
- *
- * Usage: @UseGuards(ApiKeyGuard) on any widget controller or route.
+ * Sets Access-Control-Allow-Origin to the exact request Origin (not wildcard)
+ * and adds Vary: Origin so CDNs/proxies cache CORS headers per-origin.
+ * No-op when origin is null (open-whitelist mode — no Origin header sent).
  */
-@Injectable()
-export class ApiKeyGuard implements CanActivate {
-  private readonly logger = new Logger(ApiKeyGuard.name);
+function setCorsHeaders(res: Response, origin: string | null): void {
+  if (origin) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Vary', 'Origin');
+  }
+}
 
-  constructor(private readonly apiKeysService: ApiKeysService) {}
+@Controller('widget')
+@UseGuards(ApiKeyGuard)
+export class WidgetController {
+  constructor(private readonly widgetService: WidgetService) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
-    const rawKey: string | undefined = request.headers['x-api-key'];
-
-    if (!rawKey) {
-      throw new UnauthorizedException('Missing x-api-key header.');
-    }
-
-    const result = await this.apiKeysService.validate(rawKey);
-
-    if (!result) {
-      throw new UnauthorizedException('Invalid or inactive API key.');
-    }
-
-    const { workspaceId, allowedDomains } = result;
-
-    // ── Domain whitelist enforcement ─────────────────────────────────────────
-    if (allowedDomains.length > 0) {
-      const originHeader: string | undefined = request.headers['origin'];
-
-      if (!originHeader) {
-        this.logger.warn(
-          `Blocked request for workspace ${workspaceId}: ` +
-          'no Origin header but domain whitelist is active',
-        );
-        throw new ForbiddenException('Origin header is required for this API key.');
-      }
-
-      // Strip protocol: "https://example.com" → "example.com"
-      const originHostname = this.extractHostname(originHeader);
-
-      if (!allowedDomains.includes(originHostname)) {
-        this.logger.warn(
-          `Blocked request for workspace ${workspaceId}: ` +
-          `origin "${originHostname}" not in whitelist [${allowedDomains.join(', ')}]`,
-        );
-        throw new ForbiddenException('Origin not allowed for this API key.');
-      }
-    }
-
-    // Attach workspace context — includes origin so widget controller can set
-    // the exact CORS header without re-reading the request headers
-    request.workspace = {
-      workspaceId,
-      allowedDomains,
-      origin: (request.headers['origin'] as string) ?? null,
-    };
-
-    return true;
+  /**
+   * POST /widget/events
+   * Bulk-inserts events in a single query. Tighter rate limit than stories.
+   */
+  @Post('events')
+  @UseGuards(PlanViewGuard)
+  @HttpCode(HttpStatus.CREATED)
+  // 120 event batches per minute per IP — generous for real usage, blocks hammering
+  @Throttle({ widget: { ttl: 60_000, limit: 120 } })
+  trackEvents(
+    @Req() req: Request & { workspace: WorkspaceContext },
+    @Res({ passthrough: true }) res: Response,
+    @Body() dto: CreateEventsDto,
+  ) {
+    setCorsHeaders(res, req.workspace.origin);
+    return this.widgetService.trackEvents(req.workspace.workspaceId, dto.events);
   }
 
   /**
-   * Extracts the hostname from an Origin header value.
-   * "https://app.example.com" → "app.example.com"
-   * "http://localhost:3000"   → "localhost:3000"
+   * GET /widget/stories
+   * GET /widget/stories?category=<slug>&limit=<n>
    */
-  private extractHostname(origin: string): string {
-    try {
-      return new URL(origin).host;
-    } catch {
-      // Fallback if URL parsing fails (malformed origin)
-      return origin.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    }
+  @Get('stories')
+  @Throttle({ widget: { ttl: 60_000, limit: 60 } })
+  findAll(
+    @Req() req: Request & { workspace: WorkspaceContext },
+    @Res({ passthrough: true }) res: Response,
+    @Query('category') category?: string,
+    // data-limit from widget script tag (0 = no limit)
+    @Query('limit', new DefaultValuePipe(0), ParseIntPipe) limit?: number,
+  ) {
+    setCorsHeaders(res, req.workspace.origin);
+    return this.widgetService.findPublished(
+      req.workspace.workspaceId,
+      category,
+      limit,
+    );
+  }
+
+  /**
+   * GET /widget/stories/:id
+   */
+  @Get('stories/:id')
+  @Throttle({ widget: { ttl: 60_000, limit: 60 } })
+  findOne(
+    @Req() req: Request & { workspace: WorkspaceContext },
+    @Res({ passthrough: true }) res: Response,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    setCorsHeaders(res, req.workspace.origin);
+    return this.widgetService.findOnePublished(req.workspace.workspaceId, id);
   }
 }

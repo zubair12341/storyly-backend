@@ -1,7 +1,5 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
 import { WidgetService } from './widget.service';
 import { WidgetController } from './widget.controller';
 import { WidgetServeController } from './widget-serve.controller';
@@ -15,14 +13,9 @@ import { BillingModule } from '../billing/billing.module';
     ApiKeysModule,
     CategoriesModule,
     BillingModule,
-    // Rate limiting: 60 requests per minute per IP on widget endpoints
-    ThrottlerModule.forRoot([
-      {
-        name: 'widget',
-        ttl: 60_000, // 1 minute window
-        limit: 60,   // max 60 requests per window
-      },
-    ]),
+    // ThrottlerModule is registered globally in AppModule.
+    // @Throttle({ widget: ... }) decorators in WidgetController still work
+    // because the global ThrottlerModule exposes all named configs.
   ],
   controllers: [
     WidgetServeController, // GET /widget/v1/widget.js (public, no auth)
@@ -30,11 +23,7 @@ import { BillingModule } from '../billing/billing.module';
   ],
   providers: [
     WidgetService,
-    // Apply ThrottlerGuard to all routes in this module
-    {
-      provide: APP_GUARD,
-      useClass: ThrottlerGuard,
-    },
+    // ThrottlerGuard is registered globally in AppModule — no duplicate here.
   ],
 })
 export class WidgetModule {}
