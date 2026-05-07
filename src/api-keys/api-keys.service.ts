@@ -17,7 +17,13 @@ const CACHE_TTL_MS  = 300_000; // 5 minutes
 
 interface CacheEntry {
   workspaceId: string;
+  allowedDomains: string[];
   expiresAt: number;
+}
+
+export interface ValidateResult {
+  workspaceId: string;
+  allowedDomains: string[];
 }
 
 @Injectable()
@@ -25,7 +31,7 @@ export class ApiKeysService {
   private readonly supabase: SupabaseClient;
   private readonly logger = new Logger(ApiKeysService.name);
 
-  /** In-memory cache: rawKey → { workspaceId, expiresAt } */
+  /** In-memory cache: rawKey → { workspaceId, allowedDomains, expiresAt } */
   private readonly validationCache = new Map<string, CacheEntry>();
 
   constructor(private readonly configService: ConfigService) {
@@ -40,16 +46,10 @@ export class ApiKeysService {
   // ─────────────────────────────────────────────
 
   async create(workspaceId: string, dto: CreateApiKeyDto) {
-    // 1. Generate a cryptographically random raw key
-    const rawKey = KEY_PREFIX + crypto.randomBytes(32).toString('hex');
-
-    // 2. First 12 chars used for fast DB lookup (prefix stored in plaintext)
+    const rawKey    = KEY_PREFIX + crypto.randomBytes(32).toString('hex');
     const keyPrefix = rawKey.substring(0, 12);
+    const keyHash   = await bcrypt.hash(rawKey, BCRYPT_ROUNDS);
 
-    // 3. Hash the full key for storage
-    const keyHash = await bcrypt.hash(rawKey, BCRYPT_ROUNDS);
-
-    // 4. Insert into database
     const { data, error } = await this.supabase
       .from('api_keys')
       .insert({
@@ -67,7 +67,7 @@ export class ApiKeysService {
       throw new InternalServerErrorException('Could not create API key.');
     }
 
-    // 5. Return raw key ONCE — never stored, never retrievable again
+    // Return raw key ONCE — never stored, never retrievable again
     return {
       ...data,
       key:     rawKey,
@@ -99,7 +99,6 @@ export class ApiKeysService {
   // ─────────────────────────────────────────────
 
   async remove(workspaceId: string, keyId: string) {
-    // 1. Verify the key belongs to this workspace before deleting
     const { data: existing, error: fetchError } = await this.supabase
       .from('api_keys')
       .select('id, workspace_id')
@@ -115,12 +114,10 @@ export class ApiKeysService {
       throw new NotFoundException('API key not found.');
     }
 
-    // Guard: prevent deleting another workspace's keys
     if (existing.workspace_id !== workspaceId) {
       throw new ForbiddenException('You do not have access to this API key.');
     }
 
-    // 2. Delete
     const { error: deleteError } = await this.supabase
       .from('api_keys')
       .delete()
@@ -135,19 +132,19 @@ export class ApiKeysService {
   }
 
   // ─────────────────────────────────────────────
-  //  Validate (used by Widget guard)
+  //  Validate (used by ApiKeyGuard)
   // ─────────────────────────────────────────────
 
-  async validate(rawKey: string): Promise<{ workspaceId: string } | null> {
+  async validate(rawKey: string): Promise<ValidateResult | null> {
     if (!rawKey?.startsWith(KEY_PREFIX)) return null;
 
     // ── Cache check ──────────────────────────────────────────────
     const cached = this.validationCache.get(rawKey);
     if (cached) {
       if (cached.expiresAt > Date.now()) {
-        return { workspaceId: cached.workspaceId };
+        return { workspaceId: cached.workspaceId, allowedDomains: cached.allowedDomains };
       }
-      // Entry expired — evict and fall through to bcrypt
+      // Expired — evict and fall through to bcrypt
       this.validationCache.delete(rawKey);
     }
 
@@ -155,14 +152,14 @@ export class ApiKeysService {
     const keyPrefix = rawKey.substring(0, 12);
 
     // 1. Narrow candidates by prefix (fast index lookup)
-    const { data: candidates, error } = await this.supabase
+    const { data: candidates, error: keyError } = await this.supabase
       .from('api_keys')
       .select('id, workspace_id, key_hash')
       .eq('key_prefix', keyPrefix)
       .eq('is_active', true);
 
-    if (error) {
-      this.logger.error('Failed to fetch API key candidates during validation', error);
+    if (keyError) {
+      this.logger.error('Failed to fetch API key candidates during validation', keyError);
       return null;
     }
 
@@ -172,10 +169,30 @@ export class ApiKeysService {
     for (const candidate of candidates) {
       const match = await bcrypt.compare(rawKey, candidate.key_hash);
       if (match) {
-        // Store in cache — only successful validations are cached
+        // 3. Fetch allowed_domains for this workspace in the same pass
+        const { data: workspace, error: wsError } = await this.supabase
+          .from('workspaces')
+          .select('allowed_domains')
+          .eq('id', candidate.workspace_id)
+          .single();
+
+        if (wsError) {
+          this.logger.error(
+            `Failed to fetch allowed_domains for workspace ${candidate.workspace_id}`,
+            wsError,
+          );
+          // Fail open so a DB read error on settings doesn't take down the widget.
+          // Do NOT cache — next request will retry the lookup.
+          return { workspaceId: candidate.workspace_id, allowedDomains: [] };
+        }
+
+        const allowedDomains: string[] = (workspace?.allowed_domains as string[]) ?? [];
+
+        // 4. Cache full result — guard needs no extra DB query per request
         this.validationCache.set(rawKey, {
-          workspaceId: candidate.workspace_id,
-          expiresAt:   Date.now() + CACHE_TTL_MS,
+          workspaceId:    candidate.workspace_id,
+          allowedDomains,
+          expiresAt:      Date.now() + CACHE_TTL_MS,
         });
 
         // Fire-and-forget: update last_used_at
@@ -185,7 +202,7 @@ export class ApiKeysService {
           .eq('id', candidate.id)
           .then(() => {});
 
-        return { workspaceId: candidate.workspace_id };
+        return { workspaceId: candidate.workspace_id, allowedDomains };
       }
     }
 

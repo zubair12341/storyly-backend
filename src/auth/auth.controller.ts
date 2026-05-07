@@ -1,4 +1,5 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -11,6 +12,7 @@ export class AuthController {
 
   /** POST /auth/register — Creates workspace + owner user, returns JWT. */
   @Post('register')
+  @Throttle({ auth: { ttl: 60_000, limit: 5 } })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
@@ -18,6 +20,7 @@ export class AuthController {
   /** POST /auth/login — Validates credentials, returns JWT. */
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ auth: { ttl: 60_000, limit: 5 } })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }
@@ -28,6 +31,7 @@ export class AuthController {
    */
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ auth: { ttl: 60_000, limit: 5 } })
   forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto);
   }

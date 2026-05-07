@@ -10,7 +10,7 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
-
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 
 import { BillingService } from './billing.service';
@@ -23,6 +23,7 @@ export class BillingController {
 
   @Post('create-checkout-session')
   @UseGuards(JwtAuthGuard)
+  @Throttle({ billing: { ttl: 60_000, limit: 10 } })
   createCheckoutSession(
     @Req() req: Request & { user: { workspaceId: string } },
     @Body() dto: CreateCheckoutSessionDto,
@@ -56,6 +57,7 @@ export class BillingController {
 
   @Post('portal-session')
   @UseGuards(JwtAuthGuard)
+  @Throttle({ billing: { ttl: 60_000, limit: 10 } })
   createPortalSession(@Req() req: Request & { user: { workspaceId: string } }) {
     const workspaceId = req.user?.workspaceId;
 
@@ -68,8 +70,10 @@ export class BillingController {
     return this.billingService.createPortalSession(workspaceId);
   }
 
+  // Stripe must always reach this endpoint — never rate limit it.
   @Post('webhook')
   @HttpCode(HttpStatus.OK)
+  @SkipThrottle()
   handleWebhook(
     @Req() req: Request,
     @Headers('stripe-signature') signature: string,

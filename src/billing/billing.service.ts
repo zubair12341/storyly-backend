@@ -17,6 +17,14 @@ type StripeSubscription    = Awaited<ReturnType<StripeInstance['subscriptions'][
 type StripeInvoice         = Awaited<ReturnType<StripeInstance['invoices']['retrieve']>>;
 type StripeCheckoutSession = Awaited<ReturnType<StripeInstance['checkout']['sessions']['retrieve']>>;
 
+// Event types that must be deduplicated via processed_stripe_events table.
+const IDEMPOTENT_EVENT_TYPES = new Set([
+  'checkout.session.completed',
+  'customer.subscription.updated',
+  'customer.subscription.deleted',
+  'invoice.payment_failed',
+]);
+
 @Injectable()
 export class BillingService {
   private readonly supabase: SupabaseClient;
@@ -39,10 +47,6 @@ export class BillingService {
   //  Price ID helpers (runtime — uses ConfigService, not process.env at module load)
   // ─────────────────────────────────────────────
 
-  /**
-   * Returns the Stripe price ID for the given plan.
-   * Reads from ConfigService at call-time so Render env vars are always fresh.
-   */
   private getPriceId(plan: 'pro' | 'business'): string {
     const envKey  = plan === 'pro' ? 'STRIPE_PRICE_PRO' : 'STRIPE_PRICE_BUSINESS';
     const priceId = this.configService.get<string>(envKey);
@@ -52,10 +56,6 @@ export class BillingService {
     return priceId;
   }
 
-  /**
-   * Reverse-maps a Stripe price ID back to a PlanId.
-   * Falls back to 'pro' so an unknown price never silently downgrades a user.
-   */
   private mapPriceIdToPlan(priceId: string): PlanId {
     const proPriceId      = this.configService.get<string>('STRIPE_PRICE_PRO');
     const businessPriceId = this.configService.get<string>('STRIPE_PRICE_BUSINESS');
@@ -72,8 +72,6 @@ export class BillingService {
   // ─────────────────────────────────────────────
 
   async createCheckoutSession(workspaceId: string, plan: 'pro' | 'business') {
-    // workspaceId null-check is enforced in the controller before reaching here,
-    // but we add a runtime assertion as a belt-and-braces safety net.
     if (!workspaceId) {
       throw new BadRequestException('workspaceId is required to create a checkout session.');
     }
@@ -84,12 +82,9 @@ export class BillingService {
     const cancelUrl  = this.configService.getOrThrow('STRIPE_CANCEL_URL');
 
     const session = await this.stripe.checkout.sessions.create({
-      mode:       'subscription',
-      customer:   customerId,
-      line_items: [{ price: priceId, quantity: 1 }],
-      // workspace_id is the single source of truth in the webhook handler.
-      // If this is undefined the key is silently dropped by Stripe → metadata: {}
-      // That case is already blocked above, but log it anyway for observability.
+      mode:        'subscription',
+      customer:    customerId,
+      line_items:  [{ price: priceId, quantity: 1 }],
       metadata:    { workspace_id: workspaceId },
       success_url: successUrl,
       cancel_url:  cancelUrl,
@@ -146,6 +141,16 @@ export class BillingService {
 
     this.logger.log(`Stripe webhook received: ${event.type}`);
 
+    // ── Idempotency check — only for actionable event types ──────────────────
+    if (IDEMPOTENT_EVENT_TYPES.has(event.type)) {
+      const alreadyProcessed = await this.isEventProcessed(event.id);
+      if (alreadyProcessed) {
+        this.logger.log(`Duplicate webhook skipped: ${event.id} (${event.type})`);
+        return { received: true };
+      }
+    }
+
+    // ── Dispatch ─────────────────────────────────────────────────────────────
     switch (event.type) {
       case 'checkout.session.completed':
         await this.onCheckoutCompleted(event.data.object as StripeCheckoutSession);
@@ -161,6 +166,13 @@ export class BillingService {
         break;
       default:
         this.logger.debug(`Unhandled Stripe event: ${event.type}`);
+    }
+
+    // ── Mark as processed AFTER successful handling ───────────────────────────
+    // Inserting after (not before) means a crash during processing won't
+    // permanently skip the event on the next Stripe retry.
+    if (IDEMPOTENT_EVENT_TYPES.has(event.type)) {
+      await this.markEventProcessed(event.id);
     }
 
     return { received: true };
@@ -190,7 +202,7 @@ export class BillingService {
       throw new PlanLimitExceededException({
         limit_type: 'stories',
         current,
-        limit:      limits.maxStories,
+        limit: limits.maxStories,
         plan,
       });
     }
@@ -222,7 +234,7 @@ export class BillingService {
       throw new PlanLimitExceededException({
         limit_type: 'views',
         current,
-        limit:      limits.maxMonthlyViews,
+        limit: limits.maxMonthlyViews,
         plan,
       });
     }
@@ -273,7 +285,7 @@ export class BillingService {
       session.subscription as string,
     );
 
-    const priceId     = subscription.items.data[0]?.price?.id;
+    const priceId      = subscription.items.data[0]?.price?.id;
     const plan: PlanId = priceId ? this.mapPriceIdToPlan(priceId) : 'pro';
 
     await this.upsertWorkspaceBilling(workspaceId, {
@@ -314,7 +326,6 @@ export class BillingService {
   }
 
   private async onPaymentFailed(invoice: StripeInvoice) {
-    // In Stripe v22, subscription moved to invoice.parent.subscription_details.subscription
     const rawSub = (invoice as any).parent?.subscription_details?.subscription
       ?? (invoice as any).subscription;
     const subscriptionId = typeof rawSub === 'string' ? rawSub : rawSub?.id;
@@ -324,6 +335,39 @@ export class BillingService {
     if (!workspaceId) return;
 
     await this.upsertWorkspaceBilling(workspaceId, { subscription_status: 'past_due' });
+  }
+
+  // ─────────────────────────────────────────────
+  //  Idempotency helpers
+  // ─────────────────────────────────────────────
+
+  private async isEventProcessed(stripeEventId: string): Promise<boolean> {
+    const { data, error } = await this.supabase
+      .from('processed_stripe_events')
+      .select('stripe_event_id')
+      .eq('stripe_event_id', stripeEventId)
+      .maybeSingle();
+
+    if (error) {
+      this.logger.error('Failed to check processed_stripe_events', error);
+      // On DB error, allow processing to continue rather than silently skipping.
+      return false;
+    }
+
+    return data !== null;
+  }
+
+  private async markEventProcessed(stripeEventId: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('processed_stripe_events')
+      .insert({ stripe_event_id: stripeEventId });
+
+    if (error) {
+      // Non-fatal: log but don't throw — the event was already processed successfully.
+      // A duplicate insert (race on concurrent retries) will fail with a PK violation,
+      // which is also acceptable here.
+      this.logger.error('Failed to record processed_stripe_events entry', error);
+    }
   }
 
   // ─────────────────────────────────────────────
