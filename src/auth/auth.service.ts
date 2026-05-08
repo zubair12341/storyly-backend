@@ -80,7 +80,7 @@ export class AuthService {
       throw new InternalServerErrorException('Could not create user.');
     }
 
-    const token = this.signToken(user.id, user.email, workspace.id);
+    const token = this.signToken(user.id, user.email, workspace.id, user.role);
 
     return {
       access_token: token,
@@ -115,7 +115,7 @@ export class AuthService {
       .eq('id', user.workspace_id)
       .single();
 
-    const token = this.signToken(user.id, user.email, user.workspace_id);
+    const token = this.signToken(user.id, user.email, user.workspace_id, user.role);
 
     return {
       access_token: token,
@@ -220,8 +220,13 @@ export class AuthService {
   //  Helpers
   // ─────────────────────────────────────────────
 
-  private signToken(userId: string, email: string, workspaceId: string): string {
-    return this.jwtService.sign({ sub: userId, email, workspaceId });
+  private signToken(
+    userId: string,
+    email: string,
+    workspaceId: string,
+    role: string,
+  ): string {
+    return this.jwtService.sign({ sub: userId, email, workspaceId, role });
   }
 
   private slugify(name: string): string {

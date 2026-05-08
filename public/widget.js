@@ -9,8 +9,7 @@
     })();
 
   const API_KEY = currentScript.getAttribute('data-api-key');
-  const API_BASE =
-    currentScript.getAttribute('data-api-url') || 'http://localhost:3000';
+  const API_BASE = currentScript.getAttribute('data-api-url') || '';
   const CONTAINER_SEL =
     currentScript.getAttribute('data-container') || '#story-widget';
   const CATEGORY = currentScript.getAttribute('data-category') || '';

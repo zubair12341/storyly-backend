@@ -8,12 +8,12 @@ import { AuthModule } from './auth/auth.module';
 import { ApiKeysModule } from './api-keys/api-keys.module';
 import { StoriesModule } from './stories/stories.module';
 import { WidgetModule } from './widget/widget.module';
-// CHANGED: register the new CategoriesModule
 import { CategoriesModule } from './categories/categories.module';
 import { MediaModule } from './media/media.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { BillingModule } from './billing/billing.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -51,6 +51,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     AnalyticsModule,
     BillingModule,
     WorkspacesModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [
