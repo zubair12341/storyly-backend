@@ -9,12 +9,11 @@
     })();
 
   const API_KEY = currentScript.getAttribute('data-api-key');
-  const API_BASE = currentScript.getAttribute('data-api-url') || '';
+  const API_BASE =
+    currentScript.getAttribute('data-api-url') || 'http://localhost:3000';
   const CONTAINER_SEL =
     currentScript.getAttribute('data-container') || '#story-widget';
   const CATEGORY = currentScript.getAttribute('data-category') || '';
-  // Limit number of stories loaded (0 = no limit)
-  const LIMIT = parseInt(currentScript.getAttribute('data-limit') || '0', 10);
 
   if (!API_KEY) {
     console.error('[StoryWidget] Missing data-api-key attribute.');
@@ -778,17 +777,11 @@
     // ── Fetch ─────────────────────────────────────────────────
     async _fetchStories() {
       try {
-        let url = CATEGORY
+        const url = CATEGORY
           ? API_BASE +
             '/widget/stories?category=' +
             encodeURIComponent(CATEGORY)
           : API_BASE + '/widget/stories';
-
-        // Apply data-limit if set
-        if (LIMIT > 0) {
-          url += (url.includes('?') ? '&' : '?') + 'limit=' + LIMIT;
-        }
-
         const res = await fetch(url, { headers: { 'x-api-key': API_KEY } });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         this.stories = await res.json();
