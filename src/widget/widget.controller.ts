@@ -54,7 +54,7 @@ export class WidgetController {
   @UseGuards(PlanViewGuard)
   @HttpCode(HttpStatus.CREATED)
   // 120 event batches per minute per IP — generous for real usage, blocks hammering
-  @Throttle({ widget: { ttl: 60_000, limit: 120 } })
+  @Throttle({ default: { ttl: 60_000, limit: 300 } })
   trackEvents(
     @Req() req: Request & { workspace: WorkspaceContext },
     @Res({ passthrough: true }) res: Response,
@@ -69,7 +69,7 @@ export class WidgetController {
    * GET /widget/stories?category=<slug>&limit=<n>
    */
   @Get('stories')
-  @Throttle({ widget: { ttl: 60_000, limit: 300 } })  // 300/min: multiple visitors, multiple embeds
+  @Throttle({ default: { ttl: 60_000, limit: 300 } })  // 300/min: multiple visitors, multiple embeds
   findAll(
     @Req() req: Request & { workspace: WorkspaceContext },
     @Res({ passthrough: true }) res: Response,
@@ -89,7 +89,7 @@ export class WidgetController {
    * GET /widget/stories/:id
    */
   @Get('stories/:id')
-  @Throttle({ widget: { ttl: 60_000, limit: 300 } })
+  @Throttle({ default: { ttl: 60_000, limit: 300 } })
   findOne(
     @Req() req: Request & { workspace: WorkspaceContext },
     @Res({ passthrough: true }) res: Response,

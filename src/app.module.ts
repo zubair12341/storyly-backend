@@ -18,28 +18,14 @@ import { AdminModule } from './admin/admin.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    // Global rate-limit configs — ThrottlerGuard registered below as APP_GUARD.
-    // widget config preserved exactly; api/billing/auth configs are new.
+    // Single throttler config — applies to public/unauthenticated routes only.
+    // All JWT-authenticated dashboard routes opt out via @SkipThrottle().
+    // Widget and auth routes set their own limits via @Throttle() or @SkipThrottle().
     ThrottlerModule.forRoot([
       {
-        name: 'widget',
+        name: 'default',
         ttl: 60_000,
-        limit: 300,   // raised: widget.js reloads + multiple embeds per visitor
-      },
-      {
-        name: 'api',
-        ttl: 60_000,
-        limit: 300,   // raised: dashboard hot-reloads in dev exhaust this fast
-      },
-      {
-        name: 'billing',
-        ttl: 60_000,
-        limit: 10,
-      },
-      {
-        name: 'auth',
-        ttl: 60_000,
-        limit: 5,
+        limit: 300,
       },
     ]),
     AuthModule,

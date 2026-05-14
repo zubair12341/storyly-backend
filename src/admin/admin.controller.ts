@@ -17,6 +17,7 @@ import type { RequestUser } from '../auth/current-user.decorator';
 import { AdminGuard } from './admin.guard';
 import { AdminService } from './admin.service';
 import { IsIn } from 'class-validator';
+import { SkipThrottle } from '@nestjs/throttler';
 
 class OverridePlanDto {
   @IsIn(['free', 'pro', 'business'])
@@ -30,6 +31,7 @@ class SetRoleDto {
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, AdminGuard)
+@SkipThrottle() // JWT + admin-role authenticated — no throttle needed
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 

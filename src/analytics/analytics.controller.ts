@@ -9,9 +9,11 @@ import {
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AnalyticsService } from './analytics.service';
+import { SkipThrottle } from '@nestjs/throttler';
 
 @Controller('analytics')
 @UseGuards(JwtAuthGuard)
+@SkipThrottle() // JWT-authenticated — no throttle needed on dashboard routes
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 

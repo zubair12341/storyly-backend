@@ -18,9 +18,11 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { RequestUser } from '../auth/current-user.decorator';
 import { PlanStoryGuard } from '../billing/plan.guard';
+import { SkipThrottle } from '@nestjs/throttler';
 
 @Controller('stories')
 @UseGuards(JwtAuthGuard)
+@SkipThrottle() // JWT-authenticated — no throttle needed on dashboard routes
 export class StoriesController {
   constructor(private readonly storiesService: StoriesService) {}
 

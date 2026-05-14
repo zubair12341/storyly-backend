@@ -27,6 +27,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { RequestUser } from '../auth/current-user.decorator';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SkipThrottle } from '@nestjs/throttler';
 
 const ALLOWED_FONT_MIME_TYPES = new Set([
   'font/woff',
@@ -42,6 +43,7 @@ const FONT_BUCKET = 'category-fonts';
 
 @Controller('categories')
 @UseGuards(JwtAuthGuard)
+@SkipThrottle() // JWT-authenticated — no throttle needed on dashboard routes
 export class CategoriesController {
   private readonly supabase: SupabaseClient;
   private readonly logger = new Logger(CategoriesController.name);

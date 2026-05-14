@@ -1,45 +1,42 @@
 import {
-  Body,
   Controller,
-  Delete,
   Get,
-  HttpCode,
-  HttpStatus,
   Param,
   ParseUUIDPipe,
-  Post,
   UseGuards,
+  Req,
 } from '@nestjs/common';
-import { ApiKeysService } from './api-keys.service';
-import { CreateApiKeyDto } from './dto/create-api-key.dto';
+import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { CurrentUser } from '../auth/current-user.decorator';
-import type { RequestUser } from '../auth/current-user.decorator';
+// import { AnalyticsService } from './analytics.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 
-@Controller('api-keys')
+import { SkipThrottle } from '@nestjs/throttler';
+
+@Controller('analytics')
 @UseGuards(JwtAuthGuard)
-export class ApiKeysController {
-  constructor(private readonly apiKeysService: ApiKeysService) {}
+@SkipThrottle() // JWT-authenticated — no throttle needed on dashboard routes
+export class AnalyticsController {
+  constructor(private readonly analyticsService: AnalyticsService) {}
 
-  @Post()
-  create(
-    @CurrentUser() user: RequestUser,
-    @Body() dto: CreateApiKeyDto,
-  ) {
-    return this.apiKeysService.create(user.workspaceId, dto);
+  /**
+   * GET /analytics/summary
+   * Returns workspace-wide totals: story views, slide views, CTA clicks, CTR.
+   */
+  @Get('summary')
+  getSummary(@Req() req: Request & { user: { workspaceId: string } }) {
+    return this.analyticsService.getSummary(req.user.workspaceId);
   }
 
-  @Get()
-  findAll(@CurrentUser() user: RequestUser) {
-    return this.apiKeysService.findAll(user.workspaceId);
-  }
-
-  @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  remove(
-    @CurrentUser() user: RequestUser,
+  /**
+   * GET /analytics/stories/:id
+   * Returns per-story analytics including completion rate.
+   */
+  @Get('stories/:id')
+  getStoryStats(
+    @Req() req: Request & { user: { workspaceId: string } },
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.apiKeysService.remove(user.workspaceId, id);
+    return this.analyticsService.getStoryStats(req.user.workspaceId, id);
   }
 }

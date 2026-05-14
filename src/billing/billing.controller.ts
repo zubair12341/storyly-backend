@@ -23,7 +23,7 @@ export class BillingController {
 
   @Post('create-checkout-session')
   @UseGuards(JwtAuthGuard)
-  @Throttle({ billing: { ttl: 60_000, limit: 10 } })
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   createCheckoutSession(
     @Req() req: Request & { user: { workspaceId: string } },
     @Body() dto: CreateCheckoutSessionDto,
@@ -57,7 +57,7 @@ export class BillingController {
 
   @Post('portal-session')
   @UseGuards(JwtAuthGuard)
-  @Throttle({ billing: { ttl: 60_000, limit: 10 } })
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   createPortalSession(@Req() req: Request & { user: { workspaceId: string } }) {
     const workspaceId = req.user?.workspaceId;
 
