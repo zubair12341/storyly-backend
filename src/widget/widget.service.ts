@@ -25,7 +25,7 @@ const WIDGET_STORY_SELECT = `
 // Hard ceiling — prevents accidentally returning thousands of stories
 const MAX_LIMIT = 50;
 
-interface CategoryFontInfo {
+export interface CategoryFontInfo {
   font_family: string;
   custom_font_url: string | null;
 }
