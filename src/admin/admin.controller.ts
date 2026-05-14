@@ -7,8 +7,10 @@ import {
   ParseIntPipe,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { RequestUser } from '../auth/current-user.decorator';
@@ -37,6 +39,12 @@ export class AdminController {
     return this.adminService.getStats();
   }
 
+  // ── GET /admin/revenue ────────────────────────────────────
+  @Get('revenue')
+  getRevenue() {
+    return this.adminService.getRevenue();
+  }
+
   // ── GET /admin/workspaces ─────────────────────────────────
   @Get('workspaces')
   getWorkspaces(
@@ -46,10 +54,27 @@ export class AdminController {
     return this.adminService.getWorkspaces(page, limit);
   }
 
+  // ── GET /admin/workspaces/:id/subscription ────────────────
+  // Declared BEFORE /:id so NestJS does not swallow 'subscription'
+  // as a second :id parameter value.
+  @Get('workspaces/:id/subscription')
+  getSubscriptionDetails(@Param('id') id: string) {
+    return this.adminService.getSubscriptionDetails(id);
+  }
+
   // ── GET /admin/workspaces/:id ─────────────────────────────
   @Get('workspaces/:id')
   getWorkspaceById(@Param('id') id: string) {
     return this.adminService.getWorkspaceById(id);
+  }
+
+  // ── POST /admin/workspaces/:id/cancel-subscription ────────
+  @Post('workspaces/:id/cancel-subscription')
+  cancelSubscription(
+    @Param('id') id: string,
+    @Req() req: Request & { user: { userId: string } },
+  ) {
+    return this.adminService.cancelSubscription(id, req.user.userId);
   }
 
   // ── POST /admin/workspaces/:id/override-plan ──────────────

@@ -1,8 +1,9 @@
 import {
+  ForbiddenException,
   Injectable,
-  NotFoundException,
   InternalServerErrorException,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
@@ -24,6 +25,11 @@ const WIDGET_STORY_SELECT = `
 // Hard ceiling — prevents accidentally returning thousands of stories
 const MAX_LIMIT = 50;
 
+interface CategoryFontInfo {
+  font_family: string;
+  custom_font_url: string | null;
+}
+
 @Injectable()
 export class WidgetService {
   private readonly supabase: SupabaseClient;
@@ -37,6 +43,50 @@ export class WidgetService {
       this.configService.getOrThrow<string>('SUPABASE_URL'),
       this.configService.getOrThrow<string>('SUPABASE_SERVICE_ROLE_KEY'),
     );
+  }
+
+  // ─────────────────────────────────────────────
+  //  Subscription enforcement
+  // ─────────────────────────────────────────────
+
+  private async assertSubscriptionActive(workspaceId: string): Promise<void> {
+    const { data: workspace, error } = await this.supabase
+      .from('workspaces')
+      .select('plan, subscription_status')
+      .eq('id', workspaceId)
+      .maybeSingle();
+
+    if (error) {
+      this.logger.error(
+        `assertSubscriptionActive: failed to fetch workspace ${workspaceId}`,
+        error,
+      );
+      throw new InternalServerErrorException('Could not verify subscription.');
+    }
+
+    const plan: string        = workspace?.plan ?? 'free';
+    const status: string | null = workspace?.subscription_status ?? null;
+
+    if (plan === 'free') return;
+    if (status === null) return;
+    if (status === 'active' || status === 'trialing') return;
+
+    if (status === 'past_due') {
+      this.logger.warn(
+        `Workspace ${workspaceId} is past_due — serving widget with grace period`,
+      );
+      return;
+    }
+
+    if (status === 'canceled') {
+      this.logger.error(`Workspace ${workspaceId} blocked — subscription canceled`);
+      throw new ForbiddenException('Subscription has been canceled.');
+    }
+
+    if (status === 'unpaid') {
+      this.logger.error(`Workspace ${workspaceId} blocked — subscription unpaid`);
+      throw new ForbiddenException('Subscription payment is overdue.');
+    }
   }
 
   // ─────────────────────────────────────────────
@@ -67,13 +117,17 @@ export class WidgetService {
 
   // ─────────────────────────────────────────────
   //  GET /widget/stories — optional category + limit
+  //  Returns { stories, category } where category
+  //  contains font_family and custom_font_url.
   // ─────────────────────────────────────────────
 
   async findPublished(
     workspaceId: string,
     categorySlug?: string,
     limit = 0,
-  ) {
+  ): Promise<{ stories: unknown[]; category: CategoryFontInfo | null }> {
+    await this.assertSubscriptionActive(workspaceId);
+
     let query = this.supabase
       .from('stories')
       .select(WIDGET_STORY_SELECT)
@@ -81,13 +135,22 @@ export class WidgetService {
       .eq('status', 'published')
       .order('published_at', { ascending: false });
 
+    let categoryFontInfo: CategoryFontInfo | null = null;
+
     if (categorySlug) {
       const category = await this.categoriesService.findBySlug(
         workspaceId,
         categorySlug,
       );
-      if (!category) return [];
+
+      if (!category) return { stories: [], category: null };
+
       query = query.eq('category_id', category.id);
+
+      categoryFontInfo = {
+        font_family:     (category as any).font_family     ?? 'Inter',
+        custom_font_url: (category as any).custom_font_url ?? null,
+      };
     }
 
     // Apply limit — clamp to MAX_LIMIT ceiling
@@ -101,7 +164,7 @@ export class WidgetService {
       throw new InternalServerErrorException('Could not retrieve stories.');
     }
 
-    return data;
+    return { stories: data ?? [], category: categoryFontInfo };
   }
 
   // ─────────────────────────────────────────────
@@ -109,6 +172,8 @@ export class WidgetService {
   // ─────────────────────────────────────────────
 
   async findOnePublished(workspaceId: string, storyId: string) {
+    await this.assertSubscriptionActive(workspaceId);
+
     const { data: story, error } = await this.supabase
       .from('stories')
       .select(WIDGET_STORY_SELECT)

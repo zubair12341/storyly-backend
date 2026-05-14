@@ -54,7 +54,11 @@ export class AuthService {
     const slug = this.slugify(dto.workspaceName);
     const { data: workspace, error: wsError } = await this.supabase
       .from('workspaces')
-      .insert({ name: dto.workspaceName, slug: await this.uniqueSlug(slug) })
+      .insert({
+        name: dto.workspaceName,
+        slug: await this.uniqueSlug(slug),
+        plan: 'free',
+      })
       .select('id, name, slug')
       .single();
 

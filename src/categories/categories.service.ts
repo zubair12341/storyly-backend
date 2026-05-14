@@ -11,7 +11,8 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
-const CATEGORY_SELECT = `id, workspace_id, name, slug, created_at`;
+const CATEGORY_SELECT =
+  'id, workspace_id, name, slug, font_family, custom_font_url, created_at';
 
 @Injectable()
 export class CategoriesService {
@@ -32,14 +33,23 @@ export class CategoriesService {
   async create(workspaceId: string, dto: CreateCategoryDto) {
     const slug = await this.uniqueSlug(workspaceId, this.slugify(dto.name));
 
+    const insertPayload: Record<string, unknown> = {
+      workspace_id: workspaceId,
+      name: dto.name,
+      slug,
+    };
+
+    if (dto.font_family !== undefined) {
+      insertPayload.font_family = dto.font_family;
+    }
+
     const { data, error } = await this.supabase
       .from('categories')
-      .insert({ workspace_id: workspaceId, name: dto.name, slug })
+      .insert(insertPayload)
       .select(CATEGORY_SELECT)
       .single();
 
     if (error) {
-      // Postgres unique violation code
       if (error.code === '23505') {
         throw new ConflictException('A category with this name already exists.');
       }
@@ -76,20 +86,26 @@ export class CategoriesService {
   async update(workspaceId: string, categoryId: string, dto: UpdateCategoryDto) {
     await this.findAndVerifyOwnership(workspaceId, categoryId);
 
-    const updatePayload: Record<string, any> = {};
+    const updatePayload: Record<string, unknown> = {};
 
     if (dto.name !== undefined) {
       updatePayload.name = dto.name;
-      // Regenerate slug when name changes
       updatePayload.slug = await this.uniqueSlug(
         workspaceId,
         this.slugify(dto.name),
-        categoryId, // exclude self from uniqueness check
+        categoryId,
       );
     }
 
+    if (dto.font_family !== undefined) {
+      updatePayload.font_family = dto.font_family;
+    }
+
+    if (dto.custom_font_url !== undefined) {
+      updatePayload.custom_font_url = dto.custom_font_url;
+    }
+
     if (Object.keys(updatePayload).length === 0) {
-      // Nothing to update — return current state
       return this.findAndVerifyOwnership(workspaceId, categoryId);
     }
 
@@ -112,6 +128,50 @@ export class CategoriesService {
   }
 
   // ─────────────────────────────────────────────
+  //  Update font settings
+  // ─────────────────────────────────────────────
+
+  async updateFont(
+    workspaceId: string,
+    categoryId: string,
+    fontFamily: string | null,
+    customFontUrl: string | null,
+  ) {
+    await this.findAndVerifyOwnership(workspaceId, categoryId);
+
+    const updatePayload: Record<string, unknown> = {};
+
+    if (fontFamily !== null) {
+      updatePayload.font_family = fontFamily;
+    }
+
+    if (customFontUrl !== null) {
+      updatePayload.custom_font_url = customFontUrl;
+    } else if (customFontUrl === null && fontFamily !== null) {
+      // Explicitly clearing custom font when switching back to a Google Font
+      updatePayload.custom_font_url = null;
+    }
+
+    if (Object.keys(updatePayload).length === 0) {
+      return this.findAndVerifyOwnership(workspaceId, categoryId);
+    }
+
+    const { data, error } = await this.supabase
+      .from('categories')
+      .update(updatePayload)
+      .eq('id', categoryId)
+      .select(CATEGORY_SELECT)
+      .single();
+
+    if (error) {
+      this.logger.error('Failed to update category font', error);
+      throw new InternalServerErrorException('Could not update category font.');
+    }
+
+    return data;
+  }
+
+  // ─────────────────────────────────────────────
   //  Delete
   // ─────────────────────────────────────────────
 
@@ -128,7 +188,6 @@ export class CategoriesService {
       throw new InternalServerErrorException('Could not delete category.');
     }
 
-    // Stories with this category_id are automatically set to NULL (ON DELETE SET NULL)
     return { message: 'Category deleted successfully.' };
   }
 
@@ -185,7 +244,7 @@ export class CategoriesService {
 
       const { data } = await query.maybeSingle();
 
-      if (!data) return slug; // slug is free within this workspace
+      if (!data) return slug;
 
       attempt++;
       slug = `${base}-${attempt}`;

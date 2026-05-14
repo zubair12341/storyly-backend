@@ -7,6 +7,9 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import StripeSDK = require('stripe');
+
+type StripeInstance = StripeSDK.Stripe;
 
 export interface AdminStats {
   total_workspaces: number;
@@ -42,15 +45,58 @@ export interface UserSummary {
   plan: string;
 }
 
+export type SubscriptionDetails =
+  | { has_subscription: false }
+  | {
+      has_subscription: true;
+      subscription_id: string;
+      status: string;
+      current_period_start: string;
+      current_period_end: string;
+      cancel_at_period_end: boolean;
+      canceled_at: string | null;
+      amount: number;
+      currency: string;
+      interval: string;
+      payment_method: {
+        brand: string | null;
+        last4: string | null;
+        exp_month: number | null;
+        exp_year: number | null;
+      } | null;
+    };
+
+export interface RecentCharge {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  created: string;
+  customer_email: string | null;
+  description: string | null;
+}
+
+export interface RevenueOverview {
+  mrr: number;
+  active_subscriptions: number;
+  recent_charges: RecentCharge[];
+}
+
 @Injectable()
 export class AdminService {
   private readonly supabase: SupabaseClient;
+  private readonly stripe: StripeInstance;
   private readonly logger = new Logger(AdminService.name);
 
   constructor(private readonly configService: ConfigService) {
     this.supabase = createClient(
       this.configService.getOrThrow<string>('SUPABASE_URL'),
       this.configService.getOrThrow<string>('SUPABASE_SERVICE_ROLE_KEY'),
+    );
+
+    this.stripe = new StripeSDK(
+      this.configService.getOrThrow<string>('STRIPE_SECRET_KEY'),
+      { apiVersion: '2026-04-22.dahlia' },
     );
   }
 
@@ -143,7 +189,6 @@ export class AdminService {
 
     const workspaceIds = workspaces.map((w) => w.id);
 
-    // Fetch story counts per workspace
     const { data: storyCounts, error: scErr } = await this.supabase
       .from('stories')
       .select('workspace_id')
@@ -156,7 +201,6 @@ export class AdminService {
       storyCountMap[s.workspace_id] = (storyCountMap[s.workspace_id] ?? 0) + 1;
     }
 
-    // Fetch owner emails (first user per workspace)
     const { data: ownerRows, error: ownerErr } = await this.supabase
       .from('users')
       .select('workspace_id, email')
@@ -211,19 +255,9 @@ export class AdminService {
       { data: ownerRows, error: ownerErr },
       { data: apiKeys, error: akErr },
     ] = await Promise.all([
-      this.supabase
-        .from('stories')
-        .select('id')
-        .eq('workspace_id', id),
-      this.supabase
-        .from('users')
-        .select('email')
-        .eq('workspace_id', id)
-        .limit(1),
-      this.supabase
-        .from('api_keys')
-        .select('id')
-        .eq('workspace_id', id),
+      this.supabase.from('stories').select('id').eq('workspace_id', id),
+      this.supabase.from('users').select('email').eq('workspace_id', id).limit(1),
+      this.supabase.from('api_keys').select('id').eq('workspace_id', id),
     ]);
 
     if (scErr) this.logger.error(`getWorkspaceById(${id}): stories error`, scErr);
@@ -246,6 +280,125 @@ export class AdminService {
   }
 
   // ─────────────────────────────────────────────
+  //  GET /admin/workspaces/:id/subscription
+  // ─────────────────────────────────────────────
+
+  async getSubscriptionDetails(workspaceId: string): Promise<SubscriptionDetails> {
+    const { data, error } = await this.supabase
+      .from('workspaces')
+      .select('stripe_subscription_id, stripe_customer_id')
+      .eq('id', workspaceId)
+      .maybeSingle();
+
+    if (error) {
+      this.logger.error(`getSubscriptionDetails(${workspaceId}): DB error`, error);
+      throw new InternalServerErrorException('Failed to fetch workspace.');
+    }
+
+    if (!data?.stripe_subscription_id) {
+      return { has_subscription: false };
+    }
+
+    try {
+      const subscription = await this.stripe.subscriptions.retrieve(
+        data.stripe_subscription_id,
+        { expand: ['default_payment_method'] },
+      );
+
+      const item     = subscription.items.data[0];
+      const amount   = item?.price?.unit_amount ?? 0;
+      const currency = item?.price?.currency ?? 'usd';
+      const interval = item?.price?.recurring?.interval ?? 'month';
+
+      const pm = subscription.default_payment_method;
+      let paymentMethod: {
+        brand: string | null;
+        last4: string | null;
+        exp_month: number | null;
+        exp_year: number | null;
+      } | null = null;
+
+      if (pm && typeof pm === 'object' && 'card' in pm && pm.card) {
+        paymentMethod = {
+          brand:     pm.card.brand     ?? null,
+          last4:     pm.card.last4     ?? null,
+          exp_month: pm.card.exp_month ?? null,
+          exp_year:  pm.card.exp_year  ?? null,
+        };
+      }
+
+      return {
+        has_subscription:     true,
+        subscription_id:      subscription.id,
+        status:               subscription.status,
+        current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+        current_period_end:   new Date(subscription.current_period_end   * 1000).toISOString(),
+        cancel_at_period_end: subscription.cancel_at_period_end,
+        canceled_at:          subscription.canceled_at
+          ? new Date(subscription.canceled_at * 1000).toISOString()
+          : null,
+        amount,
+        currency,
+        interval,
+        payment_method: paymentMethod,
+      };
+    } catch (err) {
+      this.logger.error(
+        `getSubscriptionDetails(${workspaceId}): Stripe error for sub ${data.stripe_subscription_id}`,
+        err,
+      );
+      throw new InternalServerErrorException('Failed to fetch subscription details from Stripe.');
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  //  POST /admin/workspaces/:id/cancel-subscription
+  // ─────────────────────────────────────────────
+
+  async cancelSubscription(
+    workspaceId: string,
+    adminUserId: string,
+  ): Promise<{ success: boolean; message: string; cancel_at_period_end: boolean }> {
+    const { data, error } = await this.supabase
+      .from('workspaces')
+      .select('stripe_subscription_id')
+      .eq('id', workspaceId)
+      .maybeSingle();
+
+    if (error) {
+      this.logger.error(`cancelSubscription(${workspaceId}): DB error`, error);
+      throw new InternalServerErrorException('Failed to fetch workspace.');
+    }
+
+    if (!data?.stripe_subscription_id) {
+      throw new BadRequestException('This workspace has no active subscription.');
+    }
+
+    try {
+      await this.stripe.subscriptions.update(data.stripe_subscription_id, {
+        cancel_at_period_end: true,
+      });
+    } catch (err) {
+      this.logger.error(
+        `cancelSubscription(${workspaceId}): Stripe error for sub ${data.stripe_subscription_id}`,
+        err,
+      );
+      throw new InternalServerErrorException('Failed to cancel subscription in Stripe.');
+    }
+
+    this.logger.warn(
+      `[ADMIN] Admin ${adminUserId} canceled subscription ${data.stripe_subscription_id} ` +
+        `for workspace ${workspaceId} (cancel_at_period_end = true)`,
+    );
+
+    return {
+      success:              true,
+      message:              'Subscription will cancel at period end.',
+      cancel_at_period_end: true,
+    };
+  }
+
+  // ─────────────────────────────────────────────
   //  POST /admin/workspaces/:id/override-plan
   // ─────────────────────────────────────────────
 
@@ -254,8 +407,7 @@ export class AdminService {
     plan: 'free' | 'pro' | 'business',
     adminUserId: string,
   ): Promise<{ success: boolean }> {
-    const subscriptionStatus =
-      plan === 'free' ? null : 'active';
+    const subscriptionStatus = plan === 'free' ? null : 'active';
 
     const { error } = await this.supabase
       .from('workspaces')
@@ -272,6 +424,77 @@ export class AdminService {
     );
 
     return { success: true };
+  }
+
+  // ─────────────────────────────────────────────
+  //  GET /admin/revenue
+  // ─────────────────────────────────────────────
+
+  async getRevenue(): Promise<RevenueOverview> {
+    const zeroed: RevenueOverview = {
+      mrr: 0,
+      active_subscriptions: 0,
+      recent_charges: [],
+    };
+
+    try {
+      const [chargesResult, subscriptionsResult] = await Promise.allSettled([
+        this.stripe.charges.list({ limit: 20 }),
+        this.stripe.subscriptions.list({ status: 'active', limit: 100 }),
+      ]);
+
+      // ── Recent charges ──────────────────────────────────────
+      const recent_charges: RecentCharge[] = [];
+      if (chargesResult.status === 'fulfilled') {
+        for (const charge of chargesResult.value.data) {
+          if (charge.status !== 'succeeded') continue;
+          recent_charges.push({
+            id:             charge.id,
+            amount:         charge.amount / 100,
+            currency:       charge.currency,
+            status:         charge.status,
+            created:        new Date(charge.created * 1000).toISOString(),
+            customer_email: charge.billing_details?.email ?? charge.receipt_email ?? null,
+            description:    charge.description ?? null,
+          });
+        }
+      } else {
+        this.logger.error('getRevenue: failed to fetch charges', chargesResult.reason);
+      }
+
+      // ── MRR calculation ─────────────────────────────────────
+      let mrrCents = 0;
+      let active_subscriptions = 0;
+
+      if (subscriptionsResult.status === 'fulfilled') {
+        const subs = subscriptionsResult.value.data;
+        active_subscriptions = subs.length;
+
+        for (const sub of subs) {
+          for (const item of sub.items.data) {
+            const unitAmount = item.price?.unit_amount ?? 0;
+            const quantity   = item.quantity ?? 1;
+            const interval   = item.price?.recurring?.interval ?? 'month';
+
+            const monthlyAmount =
+              interval === 'year'
+                ? (unitAmount * quantity) / 12
+                : unitAmount * quantity;
+
+            mrrCents += monthlyAmount;
+          }
+        }
+      } else {
+        this.logger.error('getRevenue: failed to fetch subscriptions', subscriptionsResult.reason);
+      }
+
+      const mrr = Math.round((mrrCents / 100) * 100) / 100;
+
+      return { mrr, active_subscriptions, recent_charges };
+    } catch (err) {
+      this.logger.error('getRevenue: unexpected error', err);
+      return zeroed;
+    }
   }
 
   // ─────────────────────────────────────────────

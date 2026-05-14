@@ -1,10 +1,12 @@
 import {
+  BadRequestException,
   Injectable,
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { PLANS, type PlanId } from '../billing/plans.config';
 
 @Injectable()
 export class WorkspacesService {
@@ -22,10 +24,14 @@ export class WorkspacesService {
   //  GET /workspaces/settings
   // ─────────────────────────────────────────────
 
-  async getSettings(workspaceId: string): Promise<{ allowed_domains: string[] }> {
+  async getSettings(workspaceId: string): Promise<{
+    allowed_domains: string[];
+    max_allowed_domains: number;
+    plan: string;
+  }> {
     const { data, error } = await this.supabase
       .from('workspaces')
-      .select('allowed_domains')
+      .select('allowed_domains, plan')
       .eq('id', workspaceId)
       .single();
 
@@ -34,8 +40,13 @@ export class WorkspacesService {
       throw new InternalServerErrorException('Could not retrieve workspace settings.');
     }
 
+    const plan = (data.plan as PlanId) ?? 'free';
+    const max_allowed_domains = PLANS[plan]?.maxAllowedDomains ?? PLANS.free.maxAllowedDomains;
+
     return {
       allowed_domains: (data.allowed_domains as string[]) ?? [],
+      max_allowed_domains,
+      plan,
     };
   }
 
@@ -47,6 +58,29 @@ export class WorkspacesService {
     workspaceId: string,
     domains: string[],
   ): Promise<{ allowed_domains: string[] }> {
+    // Step 1: Fetch current workspace plan
+    const { data: workspace, error: fetchError } = await this.supabase
+      .from('workspaces')
+      .select('plan')
+      .eq('id', workspaceId)
+      .single();
+
+    if (fetchError) {
+      this.logger.error('Failed to fetch workspace plan for domain limit check', fetchError);
+      throw new InternalServerErrorException('Could not verify plan limits.');
+    }
+
+    // Step 2: Resolve the domain limit for this plan
+    const plan = (workspace.plan as PlanId) ?? 'free';
+    const limit = PLANS[plan]?.maxAllowedDomains ?? PLANS.free.maxAllowedDomains;
+
+    // Step 3: Enforce the limit
+    if (domains.length > limit) {
+      throw new BadRequestException(
+        `Your ${plan} plan allows a maximum of ${limit} domain${limit === 1 ? '' : 's'}. Upgrade your plan to add more.`,
+      );
+    }
+
     const { error } = await this.supabase
       .from('workspaces')
       .update({ allowed_domains: domains })

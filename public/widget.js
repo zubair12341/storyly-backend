@@ -584,6 +584,7 @@
     constructor(container) {
       this.container = container;
       this.stories = [];
+      this.fontFamily = 'Inter';
       this.currentStoryIdx = 0;
       this.currentSlideIdx = 0;
       this.timer = null;
@@ -777,14 +778,64 @@
     // ── Fetch ─────────────────────────────────────────────────
     async _fetchStories() {
       try {
-        const url = CATEGORY
+        let url = CATEGORY
           ? API_BASE +
             '/widget/stories?category=' +
             encodeURIComponent(CATEGORY)
           : API_BASE + '/widget/stories';
+
+        if (LIMIT > 0) {
+          url += (url.includes('?') ? '&' : '?') + 'limit=' + LIMIT;
+        }
+
         const res = await fetch(url, { headers: { 'x-api-key': API_KEY } });
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        this.stories = await res.json();
+
+        const payload = await res.json();
+
+        // Support both legacy array response and new { stories, category } shape
+        if (Array.isArray(payload)) {
+          this.stories = payload;
+          this.fontFamily = 'Inter';
+        } else {
+          this.stories = payload.stories || [];
+          const cat = payload.category;
+          if (cat && cat.custom_font_url) {
+            // Inject @font-face for custom uploaded font
+            this.fontFamily =
+              'CustomWidgetFont_' + Math.random().toString(36).slice(2);
+            const style = document.createElement('style');
+            style.textContent =
+              '@font-face { font-family: "' +
+              this.fontFamily +
+              '"; ' +
+              'src: url("' +
+              cat.custom_font_url +
+              '"); }';
+            document.head.appendChild(style);
+          } else if (cat && cat.font_family && cat.font_family !== 'Inter') {
+            // Inject Google Font link (deduped)
+            this.fontFamily = cat.font_family;
+            const linkId = 'swf-' + encodeURIComponent(cat.font_family);
+            if (!document.getElementById(linkId)) {
+              const link = document.createElement('link');
+              link.id = linkId;
+              link.rel = 'stylesheet';
+              link.href =
+                'https://fonts.googleapis.com/css2?family=' +
+                encodeURIComponent(cat.font_family) +
+                ':wght@400;600&display=swap';
+              document.head.appendChild(link);
+            }
+          } else {
+            this.fontFamily = 'Inter';
+          }
+        }
+
+        // Apply font to the shadow host container
+        this.container.style.fontFamily =
+          '"' + this.fontFamily + '", sans-serif';
+
         this._renderTray();
       } catch (err) {
         console.error('[StoryWidget] Failed to fetch stories:', err);

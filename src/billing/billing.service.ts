@@ -170,8 +170,6 @@ export class BillingService {
     }
 
     // ── Mark as processed AFTER successful handling ───────────────────────────
-    // Inserting after (not before) means a crash during processing won't
-    // permanently skip the event on the next Stripe retry.
     if (IDEMPOTENT_EVENT_TYPES.has(event.type)) {
       await this.markEventProcessed(event.id);
     }
@@ -255,12 +253,38 @@ export class BillingService {
     if (error) throw new InternalServerErrorException('Could not fetch billing status.');
 
     const plan: PlanId = (data.plan as PlanId) ?? 'free';
-    return {
+
+    // Base response — always returned
+    const base = {
       plan,
       subscription_status:    data.subscription_status    ?? null,
       stripe_subscription_id: data.stripe_subscription_id ?? null,
       limits: PLANS[plan],
+      current_period_end:   null as string | null,
+      cancel_at_period_end: false,
     };
+
+    // Only fetch from Stripe when a subscription ID exists
+    if (!data.stripe_subscription_id) return base;
+
+    try {
+      const subscription = await this.stripe.subscriptions.retrieve(
+        data.stripe_subscription_id,
+      );
+
+      return {
+        ...base,
+        current_period_end:   new Date(subscription.current_period_end * 1000).toISOString(),
+        cancel_at_period_end: subscription.cancel_at_period_end,
+      };
+    } catch (err) {
+      // Stripe is temporarily unreachable — return base data without throwing
+      this.logger.error(
+        `Failed to retrieve Stripe subscription ${data.stripe_subscription_id} for workspace ${workspaceId}`,
+        err,
+      );
+      return base;
+    }
   }
 
   // ─────────────────────────────────────────────
@@ -351,7 +375,6 @@ export class BillingService {
 
     if (error) {
       this.logger.error('Failed to check processed_stripe_events', error);
-      // On DB error, allow processing to continue rather than silently skipping.
       return false;
     }
 
@@ -364,9 +387,6 @@ export class BillingService {
       .insert({ stripe_event_id: stripeEventId });
 
     if (error) {
-      // Non-fatal: log but don't throw — the event was already processed successfully.
-      // A duplicate insert (race on concurrent retries) will fail with a PK violation,
-      // which is also acceptable here.
       this.logger.error('Failed to record processed_stripe_events entry', error);
     }
   }

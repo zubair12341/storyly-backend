@@ -3,20 +3,24 @@ export type PlanId = 'free' | 'pro' | 'business';
 export interface PlanLimits {
   maxStories: number;
   maxMonthlyViews: number;
+  maxAllowedDomains: number;
 }
 
 export const PLANS: Record<PlanId, PlanLimits> = {
   free: {
     maxStories: 5,
     maxMonthlyViews: 1_000,
+    maxAllowedDomains: 1,
   },
   pro: {
     maxStories: 50,
     maxMonthlyViews: 50_000,
+    maxAllowedDomains: 3,
   },
   business: {
     maxStories: Infinity,
     maxMonthlyViews: Infinity,
+    maxAllowedDomains: 10,
   },
 };
 

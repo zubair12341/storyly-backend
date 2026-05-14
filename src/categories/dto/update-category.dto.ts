@@ -6,4 +6,12 @@ export class UpdateCategoryDto {
   @MinLength(1)
   @MaxLength(80)
   name?: string;
+
+  @IsOptional()
+  @IsString()
+  font_family?: string;
+
+  @IsOptional()
+  @IsString()
+  custom_font_url?: string;
 }
