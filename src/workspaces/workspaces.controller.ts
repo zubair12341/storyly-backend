@@ -8,12 +8,14 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
+import { SkipThrottle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { WorkspacesService } from './workspaces.service';
 import { UpdateAllowedDomainsDto } from './dto/update-allowed-domains.dto';
 
 @Controller('workspaces')
 @UseGuards(JwtAuthGuard)
+@SkipThrottle()  // Authenticated workspace reads — JWT already gates access, no throttle needed
 export class WorkspacesController {
   constructor(private readonly workspacesService: WorkspacesService) {}
 

@@ -24,12 +24,12 @@ import { AdminModule } from './admin/admin.module';
       {
         name: 'widget',
         ttl: 60_000,
-        limit: 60,
+        limit: 300,   // raised: widget.js reloads + multiple embeds per visitor
       },
       {
         name: 'api',
         ttl: 60_000,
-        limit: 100,
+        limit: 300,   // raised: dashboard hot-reloads in dev exhaust this fast
       },
       {
         name: 'billing',
