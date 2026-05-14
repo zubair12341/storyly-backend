@@ -52,6 +52,42 @@
   const ICON_PAUSE = `<svg viewBox="0 0 24 24" style="fill:#fff;stroke:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`;
   const ICON_PLAY = `<svg viewBox="0 0 24 24" style="fill:#fff;stroke:none"><polygon points="5,3 19,12 5,21"/></svg>`;
 
+  // ── Shape styles ─────────────────────────────────────────────
+  const SHAPE_STYLES = {
+    circle: {
+      thumbnailWidth: '72px',
+      thumbnailHeight: '72px',
+      thumbnailRadius: '50%',
+      viewerRadius: '50%',
+      labelMaxWidth: '72px',
+      trayGap: '32px',
+    },
+    rounded: {
+      thumbnailWidth: '64px',
+      thumbnailHeight: '88px',
+      thumbnailRadius: '16px',
+      viewerRadius: '16px',
+      labelMaxWidth: '64px',
+      trayGap: '28px',
+    },
+    square: {
+      thumbnailWidth: '80px',
+      thumbnailHeight: '80px',
+      thumbnailRadius: '8px',
+      viewerRadius: '8px',
+      labelMaxWidth: '80px',
+      trayGap: '28px',
+    },
+    portrait: {
+      thumbnailWidth: '56px',
+      thumbnailHeight: '100px',
+      thumbnailRadius: '12px',
+      viewerRadius: '12px',
+      labelMaxWidth: '56px',
+      trayGap: '24px',
+    },
+  };
+
   // ── Styles ───────────────────────────────────────────────────
   const STYLES = `
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -314,9 +350,10 @@
     /* ── Viewer card ── */
     .viewer {
       position: relative;
-      width: 100%;
-      max-width: 360px;
-      height: min(680px, 90vh);
+      width: 320px;
+      max-width: 320px;
+      height: 568px;
+      max-height: 85vh;
       border-radius: 16px;
       overflow: hidden;
       background: #111;
@@ -574,7 +611,7 @@
       }
       .viewer {
         max-width: calc(100vw - 80px);
-        height: min(680px, 90vh);
+        height: min(568px, 85vh);
       }
     }
   `;
@@ -585,6 +622,7 @@
       this.container = container;
       this.stories = [];
       this.fontFamily = 'Inter';
+      this.cardShape = 'rounded';
       this.currentStoryIdx = 0;
       this.currentSlideIdx = 0;
       this.timer = null;
@@ -797,9 +835,15 @@
         if (Array.isArray(payload)) {
           this.stories = payload;
           this.fontFamily = 'Inter';
+          this.cardShape = 'rounded';
         } else {
           this.stories = payload.stories || [];
           const cat = payload.category;
+
+          // ── Resolve card shape ──────────────────────────────
+          const rawShape = cat && cat.card_shape;
+          this.cardShape =
+            rawShape && SHAPE_STYLES[rawShape] ? rawShape : 'rounded';
           if (cat && cat.custom_font_url) {
             // Inject @font-face for custom uploaded font
             this.fontFamily =
@@ -851,27 +895,49 @@
         return;
       }
 
+      const shape = SHAPE_STYLES[this.cardShape] || SHAPE_STYLES.rounded;
+
+      // Apply gap and extra portrait padding to the tray row
+      this.tray.style.gap = shape.trayGap;
+
       this.stories.forEach((story, idx) => {
         const seen = this.seenStories.has(story.id);
         const card = document.createElement('button');
         card.className = 'story-card';
         card.setAttribute('aria-label', 'Open story: ' + story.title);
 
+        // Size the card flex-basis to thumbnail width so labels align
+        card.style.flexBasis = shape.thumbnailWidth;
+
         const visual = document.createElement('div');
         visual.className = 'story-card-visual';
+        // Apply shape radius to the visual container
+        visual.style.borderRadius = shape.thumbnailRadius;
+        visual.style.width = shape.thumbnailWidth;
 
         const ring = document.createElement('div');
         ring.className = 'story-card-ring' + (seen ? ' seen' : '');
+        // Match ring radius to shape (slightly larger than thumbnail)
+        ring.style.borderRadius =
+          shape.thumbnailRadius === '50%'
+            ? '50%'
+            : 'calc(' + shape.thumbnailRadius + ' + 3px)';
         const ringInner = document.createElement('div');
         ringInner.className = 'story-card-ring-inner';
+        ringInner.style.borderRadius = shape.thumbnailRadius;
         ring.appendChild(ringInner);
         visual.appendChild(ring);
 
         const mediaClip = document.createElement('div');
         mediaClip.className = 'story-card-media-clip';
+        // Apply shape radius to clip so cover image is clipped correctly
+        mediaClip.style.borderRadius = shape.thumbnailRadius;
 
         const mediaWrap = document.createElement('div');
         mediaWrap.className = 'story-card-media-wrap';
+        // Use shape-defined height
+        mediaWrap.style.height = shape.thumbnailHeight;
+        mediaWrap.style.width = shape.thumbnailWidth;
 
         const coverSrc = story.cover_image_url || story.thumbnail_url || '';
         const firstSlide = story.slides?.[0];
@@ -885,6 +951,8 @@
         } else {
           const ph = document.createElement('div');
           ph.className = 'story-card-cover-placeholder';
+          ph.style.height = shape.thumbnailHeight;
+          ph.style.borderRadius = shape.thumbnailRadius;
           ph.textContent = story.title.charAt(0).toUpperCase();
           mediaWrap.appendChild(ph);
         }
@@ -946,6 +1014,7 @@
         const label = document.createElement('span');
         label.className = 'story-card-label';
         label.textContent = story.title;
+        label.style.maxWidth = shape.labelMaxWidth;
 
         card.appendChild(visual);
         card.appendChild(label);
@@ -962,6 +1031,19 @@
       this.overlay.classList.add('open');
       document.body.style.overflow = 'hidden';
       this._autoScrollPaused = true;
+
+      // Apply shape-specific border-radius and mobile-responsive dimensions
+      const shape = SHAPE_STYLES[this.cardShape] || SHAPE_STYLES.rounded;
+      const viewerEl = this.overlay.querySelector('.viewer');
+      if (viewerEl) {
+        const isMobile = window.innerWidth < 380;
+        viewerEl.style.width = isMobile ? '100vw' : '320px';
+        viewerEl.style.maxWidth = isMobile ? '100vw' : '320px';
+        viewerEl.style.height = isMobile ? '100vh' : '568px';
+        viewerEl.style.maxHeight = isMobile ? '100vh' : '85vh';
+        viewerEl.style.borderRadius = isMobile ? '0' : shape.viewerRadius;
+      }
+
       this._renderStory();
       const story = this.stories[storyIdx];
       track('story_view', {

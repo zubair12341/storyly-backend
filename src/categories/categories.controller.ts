@@ -21,6 +21,7 @@ import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { UpdateFontDto } from './dto/update-font.dto';
+import { UpdateShapeDto } from './dto/update-shape.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { RequestUser } from '../auth/current-user.decorator';
@@ -84,6 +85,22 @@ export class CategoriesController {
       id,
       dto.font_family   ?? null,
       dto.custom_font_url ?? null,
+    );
+  }
+
+  // ── PATCH /categories/:id/shape ───────────────────────────
+  // Must be declared BEFORE :id to avoid NestJS matching
+  // 'shape' as the :id parameter value.
+  @Patch(':id/shape')
+  updateShape(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateShapeDto,
+  ) {
+    return this.categoriesService.updateShape(
+      user.workspaceId,
+      id,
+      dto.card_shape,
     );
   }
 

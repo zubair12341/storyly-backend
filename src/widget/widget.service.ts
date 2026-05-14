@@ -28,6 +28,7 @@ const MAX_LIMIT = 50;
 export interface CategoryFontInfo {
   font_family: string;
   custom_font_url: string | null;
+  card_shape: string;
 }
 
 @Injectable()
@@ -150,6 +151,7 @@ export class WidgetService {
       categoryFontInfo = {
         font_family:     (category as any).font_family     ?? 'Inter',
         custom_font_url: (category as any).custom_font_url ?? null,
+        card_shape:      (category as any).card_shape      ?? 'rounded',
       };
     }
 

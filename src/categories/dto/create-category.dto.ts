@@ -1,4 +1,4 @@
-import { IsString, IsOptional, MinLength, MaxLength } from 'class-validator';
+import { IsString, IsOptional, MinLength, MaxLength, IsIn } from 'class-validator';
 
 export class CreateCategoryDto {
   @IsString()
@@ -9,4 +9,9 @@ export class CreateCategoryDto {
   @IsOptional()
   @IsString()
   font_family?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['circle', 'rounded', 'square', 'portrait'])
+  card_shape?: string;
 }

@@ -12,7 +12,7 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
 const CATEGORY_SELECT =
-  'id, workspace_id, name, slug, font_family, custom_font_url, created_at';
+  'id, workspace_id, name, slug, font_family, custom_font_url, card_shape, created_at';
 
 @Injectable()
 export class CategoriesService {
@@ -41,6 +41,10 @@ export class CategoriesService {
 
     if (dto.font_family !== undefined) {
       insertPayload.font_family = dto.font_family;
+    }
+
+    if (dto.card_shape !== undefined) {
+      insertPayload.card_shape = dto.card_shape;
     }
 
     const { data, error } = await this.supabase
@@ -105,6 +109,10 @@ export class CategoriesService {
       updatePayload.custom_font_url = dto.custom_font_url;
     }
 
+    if (dto.card_shape !== undefined) {
+      updatePayload.card_shape = dto.card_shape;
+    }
+
     if (Object.keys(updatePayload).length === 0) {
       return this.findAndVerifyOwnership(workspaceId, categoryId);
     }
@@ -166,6 +174,32 @@ export class CategoriesService {
     if (error) {
       this.logger.error('Failed to update category font', error);
       throw new InternalServerErrorException('Could not update category font.');
+    }
+
+    return data;
+  }
+
+  // ─────────────────────────────────────────────
+  //  Update card shape
+  // ─────────────────────────────────────────────
+
+  async updateShape(
+    workspaceId: string,
+    categoryId: string,
+    cardShape: string,
+  ) {
+    await this.findAndVerifyOwnership(workspaceId, categoryId);
+
+    const { data, error } = await this.supabase
+      .from('categories')
+      .update({ card_shape: cardShape })
+      .eq('id', categoryId)
+      .select(CATEGORY_SELECT)
+      .single();
+
+    if (error) {
+      this.logger.error('Failed to update category shape', error);
+      throw new InternalServerErrorException('Could not update category shape.');
     }
 
     return data;
