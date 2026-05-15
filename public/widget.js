@@ -269,17 +269,17 @@
     }
 
     .story-card-logo-wrap {
-      width: 52px;
-      height: 52px;
+      width: 56px;
+      height: 56px;
       border-radius: 50%;
       position: absolute;
       left: 50%;
-      bottom: -26px;
+      bottom: -28px;
       transform: translateX(-50%);
-      background: #fff;
+      background: linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045);
       padding: 3px;
-      border: 3px solid #fff;
-      overflow: hidden;
+      border: none;
+      overflow: visible;
       box-shadow:
         0 4px 14px rgba(0,0,0,0.22),
         0 1px 4px rgba(0,0,0,0.12);
@@ -292,11 +292,24 @@
         transform 0.25s ease;
     }
 
+    .story-card-logo-inner {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: #fff;
+      padding: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
     .story-card-logo {
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: contain;
       display: block;
+      border-radius: 50%;
     }
 
     .story-card:hover .story-card-logo-wrap {
@@ -1105,19 +1118,22 @@
 
         const logoWrap = document.createElement('div');
         logoWrap.className = 'story-card-logo-wrap';
+        const logoInner = document.createElement('div');
+        logoInner.className = 'story-card-logo-inner';
         const logoSrc = story.logo_url || story.thumbnail_url || '';
         if (logoSrc) {
           const logo = document.createElement('img');
           logo.className = 'story-card-logo';
           logo.src = logoSrc;
           logo.alt = '';
-          logoWrap.appendChild(logo);
+          logoInner.appendChild(logo);
         } else {
           const logoPh = document.createElement('div');
           logoPh.className = 'story-card-logo-placeholder';
           logoPh.textContent = story.title.charAt(0).toUpperCase();
-          logoWrap.appendChild(logoPh);
+          logoInner.appendChild(logoPh);
         }
+        logoWrap.appendChild(logoInner);
         visual.appendChild(logoWrap);
 
         const label = document.createElement('span');
