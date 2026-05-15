@@ -269,33 +269,34 @@
     }
 
     .story-card-logo-wrap {
-      position: absolute;
-
-      left: 50%;
-      bottom: -30px;
-
-      transform: translateX(-50%);
-
-      width: 60px;
-      height: 60px;
+      width: 62px;
+      height: 62px;
 
       border-radius: 50%;
 
+      position: absolute;
+      left: 50%;
+      bottom: -28px;
+
+      transform: translateX(-50%);
+
       background: #fff;
+
+      padding: 4px;
 
       border: 4px solid #fff;
 
       overflow: hidden;
 
-      z-index: 15;
+      box-shadow:
+        0 8px 20px rgba(0,0,0,0.18),
+        0 2px 5px rgba(0,0,0,0.1);
+
+      z-index: 12;
 
       display: flex;
       align-items: center;
       justify-content: center;
-
-      box-shadow:
-        0 6px 18px rgba(0,0,0,0.16),
-        0 2px 6px rgba(0,0,0,0.08);
 
       transition:
         opacity 0.25s ease,
@@ -305,17 +306,14 @@
     .story-card-logo {
       width: 100%;
       height: 100%;
-
       object-fit: cover;
-
-      border-radius: 50%;
-
       display: block;
     }
 
     .story-card:hover .story-card-logo-wrap {
       opacity: 0;
-      transform: translateX(-50%) scale(0.82);
+      transform: translateX(-50%) scale(0.7);
+      pointer-events: none;
     }
     .story-card-logo-placeholder {
       width: 100%;
@@ -353,11 +351,11 @@
     }
 
     .story-card-label {
-      margin-top: 48px;
+      margin-top: 42px;
 
       font-size: 14px;
       font-weight: 600;
-      line-height: 1.35;
+      line-height: 1.2;
 
       color: #0b0e14;
 
@@ -367,12 +365,9 @@
       letter-spacing: -0.01em;
 
       display: -webkit-box;
-      -webkit-line-clamp: 2;
+      -webkit-line-clamp: 1;
       -webkit-box-orient: vertical;
-
       overflow: hidden;
-
-      padding: 0 6px;
     }
 
     /* ═══════════════════════════════════════
@@ -405,10 +400,17 @@
     .tray-outer.mobile-tray .story-card-ring-inner { border-radius: 22px; }
     .tray-outer.mobile-tray .story-card-media-wrap,
     .tray-outer.mobile-tray .story-card-cover-placeholder { height: var(--card-h); }
+    .tray-outer.mobile-tray .story-card-logo-wrap {
+      width: 55px;
+      height: 55px;
+      bottom: 12px;
+      left: 12px;
+      border-width: 2px;
+    }
     .tray-outer.mobile-tray .story-card-label {
-      margin-top: 52px;
+      margin-top: 12px;
       font-size: 13px;
-      line-height: 1.4;
+      line-height: 1.35;
     }
 
     @media (hover: none) {
@@ -1126,13 +1128,13 @@
           logoPh.textContent = story.title.charAt(0).toUpperCase();
           logoWrap.appendChild(logoPh);
         }
+        visual.appendChild(logoWrap);
 
         const label = document.createElement('span');
         label.className = 'story-card-label';
         label.textContent = story.title;
 
         card.appendChild(visual);
-        card.appendChild(logoWrap);
         card.appendChild(label);
         card.addEventListener('click', () => this._openStory(idx));
         this.tray.appendChild(card);
