@@ -92,34 +92,34 @@
   // ── Shape styles ─────────────────────────────────────────────
   const SHAPE_STYLES = {
     rounded: {
-      thumbnailWidth: '180px',
-      thumbnailHeight: '320px',
+      thumbnailWidth: '165px',
+      thumbnailHeight: '290px',
       thumbnailRadius: '22px',
-      trayGap: '18px',
+      trayGap: '14px',
       aspectRatio: '9 / 16',
     },
 
     square: {
-      thumbnailWidth: '180px',
-      thumbnailHeight: '180px',
+      thumbnailWidth: '165px',
+      thumbnailHeight: '165px',
       thumbnailRadius: '22px',
-      trayGap: '18px',
+      trayGap: '14px',
       aspectRatio: '1 / 1',
     },
 
     circle: {
-      thumbnailWidth: '180px',
-      thumbnailHeight: '180px',
+      thumbnailWidth: '165px',
+      thumbnailHeight: '165px',
       thumbnailRadius: '50%',
-      trayGap: '18px',
+      trayGap: '14px',
       aspectRatio: '1 / 1',
     },
 
     portrait: {
-      thumbnailWidth: '180px',
-      thumbnailHeight: '320px',
-      thumbnailRadius: '28px',
-      trayGap: '18px',
+      thumbnailWidth: '165px',
+      thumbnailHeight: '290px',
+      thumbnailRadius: '24px',
+      trayGap: '14px',
       aspectRatio: '9 / 16',
     },
   };
@@ -270,30 +270,38 @@
     }
 
     .story-card-logo-wrap {
-      width: 52px;
-      height: 52px;
+      width: 44px;
+      height: 44px;
 
       border-radius: 50%;
       overflow: hidden;
 
       position: absolute;
       left: 50%;
-      bottom: 14px;
+      bottom: -18px;
+
       transform: translateX(-50%);
 
       background: #fff;
 
-      border: 3px solid #ffffff;
+      border: 3px solid #fff;
 
       box-shadow:
-        0 6px 18px rgba(0, 0, 0, 0.25),
-        0 1px 2px rgba(0, 0, 0, 0.15);
+        0 4px 12px rgba(0,0,0,0.18),
+        0 1px 2px rgba(0,0,0,0.12);
 
       z-index: 10;
 
       display: flex;
       align-items: center;
       justify-content: center;
+    }
+
+    .story-card-logo {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
     }
 
     .story-card:hover .story-card-logo-wrap {
@@ -336,26 +344,21 @@
     }
 
     .story-card-label {
-      margin-top: 12px;
+      margin-top: 28px;
 
-      font-size: 16px;
-      font-weight: 700;
+      font-size: 14px;
+      font-weight: 600;
       line-height: 1.2;
 
-      color: #111827;
+      color: #0b0e14;
 
       text-align: center;
       width: 100%;
 
-      letter-spacing: -0.02em;
-
-      font-family: inherit;
-
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
+      letter-spacing: -0.01em;
 
       display: -webkit-box;
-      -webkit-line-clamp: 2;
+      -webkit-line-clamp: 1;
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
@@ -370,7 +373,7 @@
       overflow: visible;
     }
     .tray-outer.mobile-tray .tray {
-      gap: 12px;
+      gap: 14px;
       padding: 10px 12px 90px 0;
       overflow-x: auto;
       overflow-y: hidden;
