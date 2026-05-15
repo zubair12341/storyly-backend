@@ -89,12 +89,28 @@
   const ICON_PLAY = `<svg viewBox="0 0 24 24" style="fill:#fff;stroke:none"><polygon points="5,3 19,12 5,21"/></svg>`;
 
   // ── Shape styles ─────────────────────────────────────────────
-  const CARD_STYLE = {
-    cardWidth: '240px',
-    borderRadius: '18px',
-    viewerRadius: '18px',
-    logoSize: '52px',
-    titleSize: '15px',
+  // ── Shape styles ─────────────────────────────────────────────
+  const SHAPE_STYLES = {
+    rounded: {
+      thumbnailWidth: '240px',
+      thumbnailHeight: '420px',
+      thumbnailRadius: '18px',
+      trayGap: '28px',
+    },
+
+    square: {
+      thumbnailWidth: '240px',
+      thumbnailHeight: '420px',
+      thumbnailRadius: '0px',
+      trayGap: '28px',
+    },
+
+    circle: {
+      thumbnailWidth: '220px',
+      thumbnailHeight: '220px',
+      thumbnailRadius: '50%',
+      trayGap: '20px',
+    },
   };
 
   // ── Styles ───────────────────────────────────────────────────
