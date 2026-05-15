@@ -1,19 +1,55 @@
 (function () {
   'use strict';
 
-  const currentScript =
-    document.currentScript ||
-    (function () {
-      const scripts = document.getElementsByTagName('script');
-      return scripts[scripts.length - 1];
-    })();
+  // ── Locate the widget <script> tag ───────────────────────────
+  // document.currentScript is null for external scripts on some browsers
+  // (Firefox, older Safari) when the page is served from file://, because
+  // the property is only populated during synchronous inline execution.
+  // Strategy: prefer document.currentScript, then find the <script> tag
+  // whose src contains this bundle's known filename, then fall back to the
+  // last <script> in the document at execution time.
+  const currentScript = (function () {
+    if (document.currentScript) return document.currentScript;
+    // Walk all script tags and find one whose src ends with widget.js
+    const all = document.getElementsByTagName('script');
+    for (let i = all.length - 1; i >= 0; i--) {
+      const s = all[i];
+      if (s.src && /\/widget(?:\.min)?\.js(\?.*)?$/.test(s.src)) return s;
+    }
+    // Last-resort: the last script tag present at execution time
+    return all[all.length - 1] || null;
+  })();
+
+  if (!currentScript) {
+    console.error('[StoryWidget] Could not locate the widget <script> tag.');
+    return;
+  }
 
   const API_KEY = currentScript.getAttribute('data-api-key');
-  const API_BASE =
-    currentScript.getAttribute('data-api-url') || 'http://localhost:3000';
+
+  // data-api-url is REQUIRED when the host page is on file:// because there
+  // is no origin to resolve a relative URL against. Provide a hard fallback
+  // only for local dev convenience; in production the attribute must be set.
+  const API_BASE = (function () {
+    const attr = currentScript.getAttribute('data-api-url');
+    if (attr && attr.trim()) return attr.trim().replace(/\/$/, '');
+    // If widget.js itself was fetched from a remote origin, derive the base
+    // from its own src (works even when the host page is file://)
+    if (currentScript.src && currentScript.src.indexOf('http') === 0) {
+      try {
+        const u = new URL(currentScript.src);
+        return u.origin; // e.g. "https://storyly-backend.onrender.com"
+      } catch (_) {}
+    }
+    return 'http://localhost:3000';
+  })();
+
   const CONTAINER_SEL =
     currentScript.getAttribute('data-container') || '#story-widget';
   const CATEGORY = currentScript.getAttribute('data-category') || '';
+  // data-limit is optional; 0 means "no limit" (omit the query param)
+  const LIMIT =
+    parseInt(currentScript.getAttribute('data-limit') || '0', 10) || 0;
 
   if (!API_KEY) {
     console.error('[StoryWidget] Missing data-api-key attribute.');
@@ -1471,7 +1507,16 @@
     if (!container) {
       container = document.createElement('div');
       container.id = 'story-widget';
-      currentScript.parentNode.insertBefore(container, currentScript);
+      // currentScript.parentNode can be null by the time DOMContentLoaded
+      // fires (the parser has moved on). Prefer inserting before the script
+      // tag when its parent is still in the DOM, otherwise append to body.
+      const anchor =
+        currentScript && currentScript.parentNode ? currentScript : null;
+      if (anchor) {
+        anchor.parentNode.insertBefore(container, anchor);
+      } else {
+        (document.body || document.documentElement).appendChild(container);
+      }
     }
     new StoryWidget(container);
   }
