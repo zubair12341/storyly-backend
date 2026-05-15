@@ -137,7 +137,7 @@
     .tray-outer {
       width: 100%;
       overflow: hidden;
-      padding: 0 38px;
+      padding: 0 80px;
       padding-bottom: 18px;
     }
 
