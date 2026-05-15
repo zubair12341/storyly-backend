@@ -1,42 +1,45 @@
 import {
+  Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
+  Post,
   UseGuards,
-  Req,
 } from '@nestjs/common';
-import { Request } from 'express';
+import { ApiKeysService } from './api-keys.service';
+import { CreateApiKeyDto } from './dto/create-api-key.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-// import { AnalyticsService } from './analytics.service';
-import { AnalyticsService } from '../analytics/analytics.service';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { RequestUser } from '../auth/current-user.decorator';
 
-import { SkipThrottle } from '@nestjs/throttler';
-
-@Controller('analytics')
+@Controller('api-keys')
 @UseGuards(JwtAuthGuard)
-@SkipThrottle() // JWT-authenticated — no throttle needed on dashboard routes
-export class AnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsService) {}
+export class ApiKeysController {
+  constructor(private readonly apiKeysService: ApiKeysService) {}
 
-  /**
-   * GET /analytics/summary
-   * Returns workspace-wide totals: story views, slide views, CTA clicks, CTR.
-   */
-  @Get('summary')
-  getSummary(@Req() req: Request & { user: { workspaceId: string } }) {
-    return this.analyticsService.getSummary(req.user.workspaceId);
+  @Post()
+  create(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: CreateApiKeyDto,
+  ) {
+    return this.apiKeysService.create(user.workspaceId, dto);
   }
 
-  /**
-   * GET /analytics/stories/:id
-   * Returns per-story analytics including completion rate.
-   */
-  @Get('stories/:id')
-  getStoryStats(
-    @Req() req: Request & { user: { workspaceId: string } },
+  @Get()
+  findAll(@CurrentUser() user: RequestUser) {
+    return this.apiKeysService.findAll(user.workspaceId);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(
+    @CurrentUser() user: RequestUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.analyticsService.getStoryStats(req.user.workspaceId, id);
+    return this.apiKeysService.remove(user.workspaceId, id);
   }
 }
