@@ -272,18 +272,18 @@
       position: absolute;
 
       left: 50%;
-      bottom: -24px;
+      bottom: -30px;
 
       transform: translateX(-50%);
 
-      width: 56px;
-      height: 56px;
+      width: 60px;
+      height: 60px;
 
       border-radius: 50%;
 
       background: #fff;
 
-      border: 3px solid #fff;
+      border: 4px solid #fff;
 
       overflow: hidden;
 
@@ -294,8 +294,8 @@
       justify-content: center;
 
       box-shadow:
-        0 4px 12px rgba(0,0,0,0.12),
-        0 1px 3px rgba(0,0,0,0.08);
+        0 6px 18px rgba(0,0,0,0.16),
+        0 2px 6px rgba(0,0,0,0.08);
 
       transition:
         opacity 0.25s ease,
@@ -353,11 +353,11 @@
     }
 
     .story-card-label {
-      margin-top: 36px;
+      margin-top: 48px;
 
       font-size: 14px;
       font-weight: 600;
-      line-height: 1.2;
+      line-height: 1.35;
 
       color: #0b0e14;
 
@@ -367,9 +367,12 @@
       letter-spacing: -0.01em;
 
       display: -webkit-box;
-      -webkit-line-clamp: 1;
+      -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
+
       overflow: hidden;
+
+      padding: 0 6px;
     }
 
     /* ═══════════════════════════════════════
@@ -403,9 +406,9 @@
     .tray-outer.mobile-tray .story-card-media-wrap,
     .tray-outer.mobile-tray .story-card-cover-placeholder { height: var(--card-h); }
     .tray-outer.mobile-tray .story-card-label {
-      margin-top: 12px;
+      margin-top: 52px;
       font-size: 13px;
-      line-height: 1.35;
+      line-height: 1.4;
     }
 
     @media (hover: none) {
