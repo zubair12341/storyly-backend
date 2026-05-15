@@ -93,7 +93,7 @@
   const SHAPE_STYLES = {
     rounded: {
       thumbnailWidth: '195px',
-      thumbnailHeight: '315px',
+      thumbnailHeight: '300px',
       thumbnailRadius: '26px',
       trayGap: '20px',
       aspectRatio: '9 / 16',
@@ -117,7 +117,7 @@
 
     portrait: {
       thumbnailWidth: '195px',
-      thumbnailHeight: '315px',
+      thumbnailHeight: '300px',
       thumbnailRadius: '24px',
       trayGap: '14px',
       aspectRatio: '9 / 16',
