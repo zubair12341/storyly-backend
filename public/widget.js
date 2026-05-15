@@ -92,10 +92,10 @@
   // ── Shape styles ─────────────────────────────────────────────
   const SHAPE_STYLES = {
     rounded: {
-      thumbnailWidth: '165px',
-      thumbnailHeight: '290px',
-      thumbnailRadius: '22px',
-      trayGap: '14px',
+      thumbnailWidth: '195px',
+      thumbnailHeight: '340px',
+      thumbnailRadius: '26px',
+      trayGap: '20px',
       aspectRatio: '9 / 16',
     },
 
@@ -116,8 +116,8 @@
     },
 
     portrait: {
-      thumbnailWidth: '165px',
-      thumbnailHeight: '290px',
+      thumbnailWidth: '195px',
+      thumbnailHeight: '340px',
       thumbnailRadius: '24px',
       trayGap: '14px',
       aspectRatio: '9 / 16',
@@ -135,17 +135,14 @@
     .tray-outer {
       width: 100%;
       overflow: hidden;
-      padding: 0 24px;
-      padding-bottom: 8px;
+      padding: 0 38px;
+      padding-bottom: 18px;
     }
 
-    /* ═══════════════════════════════════════
-       TRAY — horizontal scroll row
-    ═══════════════════════════════════════ */
     .tray {
       display: flex;
-      gap: 28px;
-      padding: 12px 4px 16px;
+      gap: 22px;
+      padding: 18px 10px 28px;
       overflow-x: auto;
       scrollbar-width: none;
       -webkit-overflow-scrolling: touch;
@@ -191,7 +188,7 @@
       position: relative;
     }
     .story-card:hover .story-card-visual {
-      transform: translateY(-4px);
+      transform: translateY(-6px) scale(1.02);
       z-index: 5;
     }
     .story-card-media-clip::after {
@@ -270,31 +267,38 @@
     }
 
     .story-card-logo-wrap {
-      width: 44px;
-      height: 44px;
+      width: 62px;
+      height: 62px;
 
       border-radius: 50%;
-      overflow: hidden;
 
       position: absolute;
       left: 50%;
-      bottom: -18px;
+      bottom: -28px;
 
       transform: translateX(-50%);
 
       background: #fff;
 
-      border: 3px solid #fff;
+      padding: 4px;
+
+      border: 4px solid #fff;
+
+      overflow: hidden;
 
       box-shadow:
-        0 4px 12px rgba(0,0,0,0.18),
-        0 1px 2px rgba(0,0,0,0.12);
+        0 8px 20px rgba(0,0,0,0.18),
+        0 2px 5px rgba(0,0,0,0.1);
 
-      z-index: 10;
+      z-index: 12;
 
       display: flex;
       align-items: center;
       justify-content: center;
+
+      transition:
+        opacity 0.25s ease,
+        transform 0.25s ease;
     }
 
     .story-card-logo {
@@ -305,8 +309,9 @@
     }
 
     .story-card:hover .story-card-logo-wrap {
-      transform: translateX(-50%) translateY(-2px);
-      transition: all 0.25s ease;
+      opacity: 0;
+      transform: translateX(-50%) scale(0.7);
+      pointer-events: none;
     }
     .story-card-logo-placeholder {
       width: 100%;
@@ -344,7 +349,7 @@
     }
 
     .story-card-label {
-      margin-top: 28px;
+      margin-top: 42px;
 
       font-size: 14px;
       font-weight: 600;
@@ -373,7 +378,7 @@
       overflow: visible;
     }
     .tray-outer.mobile-tray .tray {
-      gap: 14px;
+      gap: 25px;
       padding: 10px 12px 90px 0;
       overflow-x: auto;
       overflow-y: hidden;
@@ -394,8 +399,8 @@
     .tray-outer.mobile-tray .story-card-media-wrap,
     .tray-outer.mobile-tray .story-card-cover-placeholder { height: var(--card-h); }
     .tray-outer.mobile-tray .story-card-logo-wrap {
-      width: 44px;
-      height: 44px;
+      width: 55px;
+      height: 55px;
       bottom: 12px;
       left: 12px;
       border-width: 2px;
@@ -432,11 +437,11 @@
       position: relative;
       display: flex;
       flex-direction: row;
-      align-items: stretch;        /* groups stretch to viewer height */
+      align-items: center;
       justify-content: center;
       width: 100%;
       height: 100%;
-      padding: 0 24px;
+      padding: 45px 24px 24px;
       gap: 0;
     }
 
@@ -476,8 +481,8 @@
       padding-bottom: 60px;
     }
 
-    .prev-group { margin-right: 16px; }
-    .next-group { margin-left: 16px; }
+    .prev-group { margin-right: 34px; }
+    .next-group { margin-left: 34px; }
 
     /* arrow below preview */
     .story-nav.prev { order: 2; position: static; }
@@ -898,7 +903,7 @@
       const isMobile = containerW < 768;
       if (isMobile) {
         this.trayOuter.classList.add('mobile-tray');
-        const cardW = Math.min(220, Math.round(containerW * 0.62));
+        const cardW = Math.min(240, Math.round(containerW * 0.72));
         this.trayOuter.style.setProperty('--card-w', `${cardW}px`);
       } else {
         this.trayOuter.classList.remove('mobile-tray');
