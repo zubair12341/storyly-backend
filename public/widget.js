@@ -92,24 +92,35 @@
   // ── Shape styles ─────────────────────────────────────────────
   const SHAPE_STYLES = {
     rounded: {
-      thumbnailWidth: '240px',
-      thumbnailHeight: '420px',
-      thumbnailRadius: '18px',
-      trayGap: '28px',
+      thumbnailWidth: '180px',
+      thumbnailHeight: '320px',
+      thumbnailRadius: '22px',
+      trayGap: '18px',
+      aspectRatio: '9 / 16',
     },
 
     square: {
-      thumbnailWidth: '240px',
-      thumbnailHeight: '420px',
-      thumbnailRadius: '0px',
-      trayGap: '28px',
+      thumbnailWidth: '180px',
+      thumbnailHeight: '180px',
+      thumbnailRadius: '22px',
+      trayGap: '18px',
+      aspectRatio: '1 / 1',
     },
 
     circle: {
-      thumbnailWidth: '220px',
-      thumbnailHeight: '220px',
+      thumbnailWidth: '180px',
+      thumbnailHeight: '180px',
       thumbnailRadius: '50%',
-      trayGap: '20px',
+      trayGap: '18px',
+      aspectRatio: '1 / 1',
+    },
+
+    portrait: {
+      thumbnailWidth: '180px',
+      thumbnailHeight: '320px',
+      thumbnailRadius: '28px',
+      trayGap: '18px',
+      aspectRatio: '9 / 16',
     },
   };
 
@@ -134,7 +145,7 @@
     .tray {
       display: flex;
       gap: 28px;
-      padding: 13px 4px 52px;
+      padding: 12px 4px 16px;
       overflow-x: auto;
       scrollbar-width: none;
       -webkit-overflow-scrolling: touch;
@@ -147,17 +158,23 @@
        STORY CARD
     ═══════════════════════════════════════ */
     .story-card {
-      flex: 0 0 240px;
-      width: 240px;
+      flex: 0 0 auto;
+
       display: flex;
       flex-direction: column;
       align-items: center;
+
       cursor: pointer;
+
       background: none;
       border: none;
+
       padding: 0;
+
       text-align: center;
+
       position: relative;
+
       overflow: visible;
     }
     .story-card-visual {
@@ -194,7 +211,6 @@
       position: absolute;
       inset: -3px;
       border-radius: 21px;
-      // background: linear-gradient(135deg, #ff7a18, #ff3cac, #784ba0);
       z-index: 0;
       pointer-events: none;
     }
@@ -210,8 +226,8 @@
     .story-card-media-wrap {
         position: relative;
         width: 100%;
-        aspect-ratio: 9 / 16;
-      }
+        overflow: hidden;
+    }
     .story-card-img,
     .story-card-video {
       position: absolute;
@@ -254,20 +270,21 @@
     }
 
     .story-card-logo-wrap {
-      width: 52px;
-      height: 52px;
+      width: 54px;
+      height: 54px;
 
-      border-radius: 14px;
+      border-radius: 16px;
 
       overflow: hidden;
 
       border: 3px solid #fff;
 
       position: absolute;
-      left: 14px;
+
+      left: 50%;
       bottom: 14px;
 
-      transform: none;
+      transform: translateX(-50%);
 
       box-shadow: 0 6px 16px rgba(0,0,0,0.25);
 
@@ -275,11 +292,11 @@
 
       background: #fff;
 
-      transition: opacity 0.25s ease;
+      transition: all 0.25s ease;
     }
     .story-card:hover .story-card-logo-wrap {
       opacity: 0;
-      transform: translateX(-50%) scale(0.8);
+      transform: translateX(-50%) scale(0.85);
     }
     .story-card-logo { width: 100%; height: 100%; object-fit: cover; display: block; }
     .story-card-logo-placeholder {
@@ -291,7 +308,6 @@
       font-size: 22px;
       font-weight: 700;
       color: #fff;
-      // background: linear-gradient(135deg, #6366f1, #ec4899);
     }
 
     .story-card-gradient {
@@ -305,23 +321,27 @@
     }
 
     .story-card-label {
-      margin-top: 14px;
+      margin-top: 12px;
 
       font-size: 15px;
       font-weight: 600;
-      line-height: 1.4;
+      line-height: 1.35;
 
-      color: #f3f4f6;
+      color: #e5e7eb;
 
-      text-align: left;
+      text-align: center;
 
       width: 100%;
+
+      font-family: inherit;
 
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
 
       overflow: hidden;
+
+      letter-spacing: -0.01em;
     }
 
     /* ═══════════════════════════════════════
@@ -405,13 +425,13 @@
     .viewer {
       position: relative;
 
-      width: min(380px, 92vw);
+      width: min(360px, 92vw);
 
       aspect-ratio: 9 / 16;
 
-      max-height: 90vh;
+      max-height: 88vh;
 
-      border-radius: 18px;
+      border-radius: 22px;
 
       overflow: hidden;
 
@@ -510,7 +530,6 @@
       width: 100%; height: 100%;
       display: flex; align-items: center; justify-content: center;
       font-size: 14px; font-weight: 700; color: #fff;
-      // background: linear-gradient(135deg, #6366f1, #ec4899);
     }
     .viewer-title {
       flex: 1;
@@ -968,6 +987,8 @@
         // Apply shape radius to the visual container
         visual.style.width = shape.thumbnailWidth;
 
+        visual.style.borderRadius = shape.thumbnailRadius;
+
         const ring = document.createElement('div');
         ring.className = 'story-card-ring' + (seen ? ' seen' : '');
         // Match ring radius to shape (slightly larger than thumbnail)
@@ -983,10 +1004,16 @@
 
         const mediaClip = document.createElement('div');
         mediaClip.className = 'story-card-media-clip';
+
+        mediaClip.style.borderRadius = shape.thumbnailRadius;
         // Apply shape radius to clip so cover image is clipped correctly
 
         const mediaWrap = document.createElement('div');
         mediaWrap.className = 'story-card-media-wrap';
+        mediaWrap.style.borderRadius = shape.thumbnailRadius;
+
+        mediaWrap.style.aspectRatio = shape.aspectRatio;
+        mediaWrap.style.height = shape.thumbnailHeight;
         // Use shape-defined height
 
         const coverSrc = story.cover_image_url || story.thumbnail_url || '';
@@ -1082,13 +1109,6 @@
       this._autoScrollPaused = true;
 
       // Apply shape-specific border-radius and mobile-responsive dimensions
-      const viewerEl = this.overlay.querySelector('.viewer');
-
-      if (viewerEl) {
-        const isMobile = window.innerWidth < 768;
-
-        viewerEl.style.borderRadius = isMobile ? '0px' : '18px';
-      }
 
       this._renderStory();
       const story = this.stories[storyIdx];
