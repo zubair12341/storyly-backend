@@ -269,20 +269,20 @@
     }
 
     .story-card-logo-wrap {
-      width: 48px;
-      height: 48px;
+      width: 52px;
+      height: 52px;
       border-radius: 50%;
       position: absolute;
-      left: 10px;
-      bottom: 10px;
-      transform: none;
+      left: 50%;
+      bottom: -26px;
+      transform: translateX(-50%);
       background: #fff;
       padding: 3px;
       border: 3px solid #fff;
       overflow: hidden;
       box-shadow:
-        0 4px 12px rgba(0,0,0,0.25),
-        0 1px 4px rgba(0,0,0,0.15);
+        0 4px 14px rgba(0,0,0,0.22),
+        0 1px 4px rgba(0,0,0,0.12);
       z-index: 12;
       display: flex;
       align-items: center;
@@ -300,10 +300,10 @@
     }
 
     .story-card:hover .story-card-logo-wrap {
-      opacity: 0;
-      transform: scale(0.7);
-      pointer-events: none;
-    }
+        opacity: 0;
+        transform: translateX(-50%) scale(0.7);
+        pointer-events: none;
+      }
     .story-card-logo-placeholder {
       width: 100%;
       height: 100%;
@@ -340,7 +340,7 @@
     }
 
     .story-card-label {
-      margin-top: 12px;
+      margin-top: 36px;
 
       font-size: 14px;
       font-weight: 600;
@@ -390,10 +390,11 @@
     .tray-outer.mobile-tray .story-card-media-wrap,
     .tray-outer.mobile-tray .story-card-cover-placeholder { height: var(--card-h); }
     .tray-outer.mobile-tray .story-card-logo-wrap {
-      width: 55px;
-      height: 55px;
-      bottom: 12px;
-      left: 12px;
+      width: 48px;
+      height: 48px;
+      bottom: -24px;
+      left: 50%;
+      transform: translateX(-50%);
       border-width: 2px;
     }
     .tray-outer.mobile-tray .story-card-label {
