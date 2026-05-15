@@ -127,7 +127,9 @@
   // ── Styles ───────────────────────────────────────────────────
   const STYLES = `
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :host { display: block; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    :host {
+      display: block;
+    }
 
     /* ═══════════════════════════════════════
        TRAY WRAPPER
@@ -976,8 +978,24 @@
         }
 
         // Apply font to the shadow host container
-        this.container.style.fontFamily =
-          '"' + this.fontFamily + '", sans-serif';
+        // Apply dynamic font inside shadow DOM
+        const dynamicFontStyle = document.createElement('style');
+
+        dynamicFontStyle.textContent = `
+          :host,
+          .tray,
+          .story-card,
+          .story-card-label,
+          .viewer,
+          .viewer-title,
+          .next-story-title,
+          .btn-cta,
+          .preview-label {
+            font-family: "${this.fontFamily}", sans-serif !important;
+          }
+        `;
+
+        this.shadow.appendChild(dynamicFontStyle);
 
         this._renderTray();
       } catch (err) {
