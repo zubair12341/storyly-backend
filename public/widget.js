@@ -269,34 +269,33 @@
     }
 
     .story-card-logo-wrap {
-      width: 62px;
-      height: 62px;
-
-      border-radius: 50%;
-
       position: absolute;
+
       left: 50%;
-      bottom: -28px;
+      bottom: -24px;
 
       transform: translateX(-50%);
 
+      width: 56px;
+      height: 56px;
+
+      border-radius: 50%;
+
       background: #fff;
 
-      padding: 4px;
-
-      border: 4px solid #fff;
+      border: 3px solid #fff;
 
       overflow: hidden;
 
-      box-shadow:
-        0 8px 20px rgba(0,0,0,0.18),
-        0 2px 5px rgba(0,0,0,0.1);
-
-      z-index: 12;
+      z-index: 15;
 
       display: flex;
       align-items: center;
       justify-content: center;
+
+      box-shadow:
+        0 4px 12px rgba(0,0,0,0.12),
+        0 1px 3px rgba(0,0,0,0.08);
 
       transition:
         opacity 0.25s ease,
@@ -306,14 +305,17 @@
     .story-card-logo {
       width: 100%;
       height: 100%;
+
       object-fit: cover;
+
+      border-radius: 50%;
+
       display: block;
     }
 
     .story-card:hover .story-card-logo-wrap {
       opacity: 0;
-      transform: translateX(-50%) scale(0.7);
-      pointer-events: none;
+      transform: translateX(-50%) scale(0.82);
     }
     .story-card-logo-placeholder {
       width: 100%;
@@ -351,7 +353,7 @@
     }
 
     .story-card-label {
-      margin-top: 42px;
+      margin-top: 36px;
 
       font-size: 14px;
       font-weight: 600;
@@ -400,13 +402,6 @@
     .tray-outer.mobile-tray .story-card-ring-inner { border-radius: 22px; }
     .tray-outer.mobile-tray .story-card-media-wrap,
     .tray-outer.mobile-tray .story-card-cover-placeholder { height: var(--card-h); }
-    .tray-outer.mobile-tray .story-card-logo-wrap {
-      width: 55px;
-      height: 55px;
-      bottom: 12px;
-      left: 12px;
-      border-width: 2px;
-    }
     .tray-outer.mobile-tray .story-card-label {
       margin-top: 12px;
       font-size: 13px;
@@ -1128,13 +1123,13 @@
           logoPh.textContent = story.title.charAt(0).toUpperCase();
           logoWrap.appendChild(logoPh);
         }
-        visual.appendChild(logoWrap);
 
         const label = document.createElement('span');
         label.className = 'story-card-label';
         label.textContent = story.title;
 
         card.appendChild(visual);
+        card.appendChild(logoWrap);
         card.appendChild(label);
         card.addEventListener('click', () => this._openStory(idx));
         this.tray.appendChild(card);
