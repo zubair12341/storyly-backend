@@ -269,35 +269,24 @@
     }
 
     .story-card-logo-wrap {
-      width: 62px;
-      height: 62px;
-
+      width: 48px;
+      height: 48px;
       border-radius: 50%;
-
       position: absolute;
-      left: 50%;
-      bottom: -28px;
-
-      transform: translateX(-50%);
-
+      left: 10px;
+      bottom: 10px;
+      transform: none;
       background: #fff;
-
-      padding: 4px;
-
-      border: 4px solid #fff;
-
+      padding: 3px;
+      border: 3px solid #fff;
       overflow: hidden;
-
       box-shadow:
-        0 8px 20px rgba(0,0,0,0.18),
-        0 2px 5px rgba(0,0,0,0.1);
-
+        0 4px 12px rgba(0,0,0,0.25),
+        0 1px 4px rgba(0,0,0,0.15);
       z-index: 12;
-
       display: flex;
       align-items: center;
       justify-content: center;
-
       transition:
         opacity 0.25s ease,
         transform 0.25s ease;
@@ -312,7 +301,7 @@
 
     .story-card:hover .story-card-logo-wrap {
       opacity: 0;
-      transform: translateX(-50%) scale(0.7);
+      transform: scale(0.7);
       pointer-events: none;
     }
     .story-card-logo-placeholder {
@@ -351,7 +340,7 @@
     }
 
     .story-card-label {
-      margin-top: 42px;
+      margin-top: 12px;
 
       font-size: 14px;
       font-weight: 600;
