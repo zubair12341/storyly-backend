@@ -270,35 +270,50 @@
     }
 
     .story-card-logo-wrap {
-      width: 54px;
-      height: 54px;
+      width: 52px;
+      height: 52px;
 
-      border-radius: 16px;
-
+      border-radius: 50%;
       overflow: hidden;
 
-      border: 3px solid #fff;
-
       position: absolute;
-
       left: 50%;
       bottom: 14px;
-
       transform: translateX(-50%);
-
-      box-shadow: 0 6px 16px rgba(0,0,0,0.25);
-
-      z-index: 10;
 
       background: #fff;
 
+      border: 3px solid #ffffff;
+
+      box-shadow:
+        0 6px 18px rgba(0, 0, 0, 0.25),
+        0 1px 2px rgba(0, 0, 0, 0.15);
+
+      z-index: 10;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .story-card:hover .story-card-logo-wrap {
+      transform: translateX(-50%) translateY(-2px);
       transition: all 0.25s ease;
     }
-    .story-card:hover .story-card-logo-wrap {
-      opacity: 0;
-      transform: translateX(-50%) scale(0.85);
+    .story-card-logo-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      font-size: 18px;
+      font-weight: 800;
+
+      color: #fff;
+
+      background: linear-gradient(135deg, #6366f1, #ec4899);
     }
-    .story-card-logo { width: 100%; height: 100%; object-fit: cover; display: block; }
     .story-card-logo-placeholder {
       width: 100%;
       height: 100%;
@@ -323,25 +338,26 @@
     .story-card-label {
       margin-top: 12px;
 
-      font-size: 15px;
-      font-weight: 600;
-      line-height: 1.35;
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.2;
 
-      color: #e5e7eb;
+      color: #111827;
 
       text-align: center;
-
       width: 100%;
 
+      letter-spacing: -0.02em;
+
       font-family: inherit;
+
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
 
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
-
       overflow: hidden;
-
-      letter-spacing: -0.01em;
     }
 
     /* ═══════════════════════════════════════
